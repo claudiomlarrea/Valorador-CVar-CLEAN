@@ -15,7 +15,7 @@
           "max_points": 300
   },
         "Maestría (finalizada)": {
-          "pattern": "(?is)(?:Maestr[ií]a\\b|Mag[ií]ster\\b)[\\s\\S]{0,700}?(?:A[nñ]o\\s+de\\s+finalizaci[oó]n:\\s*(?:\\d{2}/\\d{4}|19\\d{2}|20\\d{2})|Situaci[oó]n\\s+del\\s+nivel\\s*:\\s*Completo|\\b(finalizad[oa]|egresad[oa]|graduad[oa]|t[ií]tulo\\s+obtenido|t[ií]tulo\\s+otorgado)\\b)(?![\\s\\S]{0,140}?(?:Actualidad|En\\s+curso|Cursando))",
+          "pattern": "(?is)(?:Maestr[ií]a\\b|Mag[ií]ster\\b|Magister\\b)[\\s\\S]{0,1200}?(?:A(?:ñ|n)o\\s+de\\s+(?:finalizaci[oó]n|obtenci[oó]n|graduaci[oó]n)\\s*[:\\-–]?\\s*(?:\\d{2}/\\d{4}|19\\d{2}|20\\d{2})|Situaci[oó]n\\s+del\\s+nivel\\s*[:\\-–]?\\s*Completo|\\b(finalizad[oa]|egresad[oa]|graduad[oa]|t[ií]tulo\\s+obtenido|t[ií]tulo\\s+otorgado)\\b)(?![\\s\\S]{0,140}?(?:Actualidad|En\\s+curso|Cursando))",
           "unit_points": 180,
           "max_points": 180
   },
@@ -25,9 +25,9 @@
           "max_points": 100
   },
       "Título de grado (finalizado)": {
-          "pattern": "(?is)(Licenciad(?:o|a|os|as)|Licenciatura|Ingenier(?:o|a)|Abogad(?:o|a)|M[eé]dic(?:o|a)|Contador(?:a)?|Arquitect(?:o|a)|Bioqu[ií]mic(?:o|a)|Odont[oó]log(?:o|a))[\\s\\S]{0,600}?(?:A(?:ñ|n)o\\s+de\\s+finalizaci(?:ó|o)n\\s*:\\s*(?:\\d{1,2}\\s*/\\s*)?(?:19\\d{2}|20\\d{2})|Situaci[oó]n\\s+del\\s+nivel\\s*:\\s*Completo|\\b(finalizad[oa]|egresad[oa]|graduad[oa]|t[ií]tulo\\s+obtenido|t[ií]tulo\\s+otorgado)\\b)(?![\\s\\S]{0,140}?(?:Actualidad|En\\s+curso|Cursando))",
-          "unit_points": 40,
-          "max_points": 40
+        "pattern": "(?is)(Licenciad(?:o|a|os|as)\\s+en\\s+(?:Teolog(?:í|i)a(?:\\s+Moral)?|Teolog(?:í|i)a\\s+Moral)\\b|Licenciatura\\s+en\\s+Teolog(?:í|i)a(?:\\s+Moral)?\\b|Licenciad(?:o|a|os|as)|Licenciatura|Ingenier(?:o|a)|Abogad(?:o|a)|M[eé]dic(?:o|a)|Contador(?:a)?|Arquitect(?:o|a)|Bioqu[ií]mic(?:o|a))[\\s\\S]{0,240}?(?:A(?:ñ|n)o\\s+de\\s+finalizaci(?:ó|o)n)\\s*:\\s*(?:\\d{1,2}\\s*/\\s*)?(19\\d{2}|20\\d{2})",
+        "unit_points": 40,
+        "max_points": 40
   },
       "Profesorado/Docencia universitaria (finalizado)": {
           "pattern": "(?is)(Profesorado|Profesor\\s+Universitario)[\\s\\S]{0,600}?(?:A(?:ñ|n)o\\s+de\\s+finalizaci(?:ó|o)n\\s*:\\s*(?:\\d{1,2}\\s*/\\s*)?(?:19\\d{2}|20\\d{2})|Situaci[oó]n\\s+del\\s+nivel\\s*:\\s*Completo|\\b(finalizad[oa]|egresad[oa]|graduad[oa]|t[ií]tulo\\s+obtenido|t[ií]tulo\\s+otorgado)\\b)(?![\\s\\S]{0,140}?(?:Actualidad|En\\s+curso|Cursando))",
