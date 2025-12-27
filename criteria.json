@@ -15,14 +15,14 @@
           "max_points": 300
         },
         "Maestría (finalizada)": {
-          "pattern": "(?is)(?:^|\\n)\\s*(?:FORMACI[OÓ]N\\s+ACAD[ÉE]MICA(?:\\s+Y\\s+COMPLEMENTARIA)?\\b[\\s\\S]{0,3000})?(?:Maestr[ií]a\\b|Mag[ií]ster\\b)[\\s\\S]{0,500}?(?:Año\\s+de\\s+finalizaci[oó]n:\\s*(?:19\\d{2}|20\\d{2}|\\d{2}/\\d{4})|\\b(?:19\\d{2}|20\\d{2})\\b)(?![\\s\\S]{0,140}?(?:Actualidad|En\\s+curso|Cursando))",
-          "unit_points": 180,
-          "max_points": 180
+        "pattern": "(?is)(?:^|\\n)\\s*(?:FORMACI[OÓ]N\\s+ACAD[ÉE]MICA(?:\\s+Y\\s+COMPLEMENTARIA)?\\b[\\s\\S]{0,3000})?(?:Maestr[ií]a\\b|Mag[ií]ster\\b)[\\s\\S]{0,700}?(?:(?:A[nñ]o|Fecha)\\s+de\\s+finalizaci[oó]n\\s*:\\s*(?:\\d{2}/\\d{4}|19\\d{2}|20\\d{2}))",
+        "unit_points": 180,
+        "max_points": 180
         },
-        "Especialización (finalizada)": {
-          "pattern": "(?is)(?:^|\\n)\\s*(?:FORMACI[OÓ]N\\s+ACAD[ÉE]MICA(?:\\s+Y\\s+COMPLEMENTARIA)?\\b[\\s\\S]{0,3500})?(?:Especializaci[oó]n\\b|Especialista\\b)[\\s\\S]{0,600}?(?:Año\\s+de\\s+finalizaci[oó]n:\\s*(?:19\\d{2}|20\\d{2}|\\d{2}/\\d{4})|\\b(?:19\\d{2}|20\\d{2})\\b)(?![\\s\\S]{0,140}?(?:Actualidad|En\\s+curso|Cursando))",
-          "unit_points": 100,
-          "max_points": 100
+       "Especialización (finalizada)": {
+        "pattern": "(?is)(?:^|\\n)\\s*(?:FORMACI[OÓ]N\\s+ACAD[ÉE]MICA(?:\\s+Y\\s+COMPLEMENTARIA)?\\b[\\s\\S]{0,3500})?(?:Especializaci[oó]n\\b|Especialista\\b)[\\s\\S]{0,900}?(?:(?:A[nñ]o|Fecha)\\s+de\\s+finalizaci[oó]n\\s*:\\s*(?:\\d{2}/\\d{4}|19\\d{2}|20\\d{2}))",
+        "unit_points": 100,
+        "max_points": 100
         },
         "Título de grado (finalizado)": {
           "pattern": "(?i)(Licenciad(?:o|a|os|as)|Licenciatura|Ingenier(?:o|a)|Abogad(?:o|a)|M[eé]dic(?:o|a)|Contador(?:a)?|Arquitect(?:o|a)|Bioqu[ií]mic(?:o|a))[\\s\\S]{0,240}?(?:A(?:ñ|n)o\\s+de\\s+finalizaci(?:ó|o)n)\\s*:\\s*(?:\\d{1,2}\\s*/\\s*)?(19\\d{2}|20\\d{2})",
