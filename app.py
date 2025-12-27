@@ -8,15 +8,13 @@ from scorer import load_criteria, score_text
 
 st.set_page_config(page_title="Valorador de CVar CLEAN - UCCuyo (TXT)", layout="wide")
 st.title("Universidad Católica de Cuyo — Valorador de CVar (TXT limpio)")
-st.caption("Entrada: *_CVAR_CLEAN.txt (salida del Normalizador). Exporta Excel y Word + categoría automática.")
+st.caption("Entrada: *_CVAR_CLEAN.txt (salida del Normalizador). Exporta Excel y Word + categoría automática. (STRICT: no puntúa títulos sin finalización explícita)")
 
-# Cargar criteria.json
 criteria = load_criteria("criteria.json")
 
 DEBUG = st.checkbox("Debug (mostrar vista previa y coincidencias)", value=False)
 
 uploaded = st.file_uploader("Cargar CVar limpio (.txt)", type=["txt"])
-
 if not uploaded:
     st.info("Subí un archivo TXT limpio para iniciar la valoración.")
     st.stop()
@@ -26,7 +24,7 @@ text = raw.decode("utf-8", errors="ignore")
 
 st.success(f"Archivo cargado: {uploaded.name}")
 
-# Vista previa para no colgar (solo UI)
+# Vista previa (solo UI)
 preview_lines = 200
 lines = text.splitlines()
 preview = "\n".join(lines[:preview_lines])
@@ -47,9 +45,7 @@ st.metric("Categoría alcanzada", f"Categoría {category}")
 if desc_cat:
     st.info(f"Descripción de la categoría: {desc_cat}")
 
-# =========================
 # Tabla detalle por ítem
-# =========================
 rows = []
 for r in item_results:
     rows.append({
@@ -65,15 +61,12 @@ for r in item_results:
 
 df_items = pd.DataFrame(rows)
 
-# Para mostrar como tu app: por sección
 st.markdown("---")
 st.subheader("Detalle por sección")
 
 for section_name, cfg in criteria.get("sections", {}).items():
     st.markdown(f"### {section_name}")
     df_sec = df_items[df_items["Sección"] == section_name].copy()
-
-    # Orden: primero los que detectan algo, luego el resto (opcional)
     df_sec = df_sec.sort_values(["Puntaje (tope aplicado)", "Ocurrencias"], ascending=False)
 
     st.dataframe(
@@ -86,23 +79,18 @@ for section_name, cfg in criteria.get("sections", {}).items():
     sec_sub = section_totals.get(section_name, 0.0)
     st.info(f"Subtotal {section_name}: {sec_sub:.1f} / máx {sec_max}")
 
-# Totales por sección
 st.markdown("---")
 st.subheader("Totales por sección (tope de sección aplicado)")
 df_sec_tot = pd.DataFrame([{"Sección": k, "Subtotal": v} for k, v in section_totals.items()])
 df_sec_tot = df_sec_tot.sort_values("Subtotal", ascending=False)
 st.dataframe(df_sec_tot, use_container_width=True, hide_index=True)
 
-# =========================
-# Exportaciones
-# =========================
 st.markdown("---")
 st.subheader("Exportar resultados")
 
 # Excel
 excel_out = io.BytesIO()
 with pd.ExcelWriter(excel_out, engine="xlsxwriter") as writer:
-    # Una hoja por sección (como vos)
     for section_name in criteria.get("sections", {}).keys():
         df_s = df_items[df_items["Sección"] == section_name].copy()
         df_s.to_excel(writer, sheet_name=section_name[:31], index=False)
@@ -127,7 +115,7 @@ def export_word(df_items_local, df_sec_tot_local, total_pts, cat, cat_desc, file
     doc = DocxDocument()
     p = doc.add_paragraph("Universidad Católica de Cuyo — Secretaría de Investigación")
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    doc.add_paragraph("Informe de valoración de CVar (TXT limpio)").alignment = WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_paragraph("Informe de valoración de CVar (TXT limpio) — STRICT").alignment = WD_ALIGN_PARAGRAPH.CENTER
     doc.add_paragraph("")
     doc.add_paragraph(f"Archivo evaluado: {filename}")
     doc.add_paragraph(f"Puntaje total: {total_pts:.1f}")
@@ -144,7 +132,6 @@ def export_word(df_items_local, df_sec_tot_local, total_pts, cat, cat_desc, file
         doc.add_heading(section_name, level=2)
         df_s = df_items_local[df_items_local["Sección"] == section_name].copy()
 
-        # tabla como tu app
         cols = ["Ítem", "Ocurrencias", "Puntaje (tope aplicado)", "Tope ítem"]
         if DEBUG:
             cols.append("Evidencia (1er match)")
@@ -162,7 +149,7 @@ def export_word(df_items_local, df_sec_tot_local, total_pts, cat, cat_desc, file
                 for i, c in enumerate(cols):
                     cells[i].text = str(r.get(c, ""))
 
-        doc.add_paragraph(f"Subtotal sección: {section_totals.get(section_name, 0.0):.1f}")
+        doc.add_paragraph(f"Subtotal sección: {df_sec_tot_local[df_sec_tot_local['Sección']==section_name]['Subtotal'].values[0]:.1f}" if (df_sec_tot_local['Sección']==section_name).any() else "")
 
     bio = io.BytesIO()
     doc.save(bio)
