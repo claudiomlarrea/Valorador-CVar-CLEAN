@@ -3,6 +3,46 @@ import re
 from dataclasses import dataclass
 from typing import Dict, Any, List, Tuple
 
+
+# =========================
+# Reglas duras de finalización
+# =========================
+RE_IN_PROGRESS = re.compile(
+    r"\b(Actualidad|En\s+curso|Cursando|Actualmente|Vigente|A\s+la\s+fecha|Hasta\s+la\s+actualidad|En\s+desarrollo)\b",
+    re.IGNORECASE,
+)
+
+RE_FINISH_FIELD = re.compile(
+    r"\b(A[nñ]o|Fecha)\s+de\s+(finalizaci[oó]n|obtenci[oó]n|graduaci[oó]n)\s*:\s*(\d{2}/\d{4}|19\d{2}|20\d{2})\b",
+    re.IGNORECASE,
+)
+
+
+def requires_explicit_finish(item_name: str) -> bool:
+    """
+    Decide si un ítem exige finalización explícita.
+    Regla: todo ítem cuyo nombre contenga "finalizado/a" exige campo de finalización.
+    """
+    n = (item_name or "").lower()
+    return ("finalizado" in n) or ("finalizada" in n) or ("finalizado/a" in n)
+
+
+def match_is_completed(match_text: str) -> bool:
+    """
+    Regla dura:
+    - Si aparece 'Actualidad/En curso...' => NO finalizado
+    - Debe aparecer explícitamente 'Año/Fecha de finalización:' (o de obtención/graduación)
+    """
+    if not match_text:
+        return False
+    if RE_IN_PROGRESS.search(match_text):
+        return False
+    return bool(RE_FINISH_FIELD.search(match_text))
+
+
+# =========================
+# Estructuras y carga
+# =========================
 @dataclass
 class ItemResult:
     section: str
@@ -15,12 +55,17 @@ class ItemResult:
     item_max_points: float
     evidence: str
 
+
 def load_criteria(path: str = "criteria.json") -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
+
 def _compile(pattern: str) -> re.Pattern:
+    # Tu criteria.json ya trae flags inline (?is)(?ims), etc.
+    # Por eso compilamos sin flags globales para no interferir.
     return re.compile(pattern)
+
 
 def _pick_evidence(text: str, m: re.Match, max_chars: int = 260) -> str:
     start = max(0, m.start() - 80)
@@ -28,6 +73,7 @@ def _pick_evidence(text: str, m: re.Match, max_chars: int = 260) -> str:
     snippet = text[start:end]
     snippet = re.sub(r"\s+", " ", snippet).strip()
     return snippet[:max_chars]
+
 
 def score_text(
     text: str,
@@ -56,6 +102,18 @@ def score_text(
 
             rx = _compile(pattern)
             matches = list(rx.finditer(text))
+
+            # =========================
+            # ✅ FILTRO DURO: finalización explícita
+            # =========================
+            if requires_explicit_finish(item_name):
+                filtered = []
+                for m in matches:
+                    frag = m.group(0) if m else ""
+                    if match_is_completed(frag):
+                        filtered.append(m)
+                matches = filtered
+
             count = len(matches)
 
             raw_points = count * unit_points
@@ -85,6 +143,7 @@ def score_text(
         section_totals[section_name] = sec_sum
         total_points += sec_sum
 
+    # Categoría por umbral (de mayor a menor)
     category = "VI"
     if categorias:
         ordered = sorted(
