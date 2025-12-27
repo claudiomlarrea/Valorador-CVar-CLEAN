@@ -13,29 +13,29 @@
           "pattern": "(?is)(?:Doctorado\\b|Doctor\\s+en\\b|Doctor\\s+de\\s+la\\s+Universidad\\b)[\\s\\S]{0,600}?A[nñ]o\\s+de\\s+finalizaci[oó]n:\\s*(?:19\\d{2}|20\\d{2})(?![\\s\\S]{0,140}?(?:Actualidad|En\\s+curso|Cursando))",
           "unit_points": 300,
           "max_points": 300
-        },
+  },
         "Maestría (finalizada)": {
-          "pattern": "(?is)(?:^|\\n)\\s*(?:FORMACI[OÓ]N\\s+ACAD[ÉE]MICA(?:\\s+Y\\s+COMPLEMENTARIA)?\\b[\\s\\S]{0,3000})?(?:Maestr[ií]a\\b)[\\s\\S]{0,500}?(?:Año\\s+de\\s+finalizaci[oó]n:\\s*(?:19\\d{2}|20\\d{2}|\\d{2}/\\d{4})|\\b(?:19\\d{2}|20\\d{2})\\b)(?![\\s\\S]{0,140}?(?:Actualidad|En\\s+curso|Cursando))",
+          "pattern": "(?is)(?:Maestr[ií]a\\b|Mag[ií]ster\\b)[\\s\\S]{0,700}?(?:A[nñ]o\\s+de\\s+finalizaci[oó]n:\\s*(?:\\d{2}/\\d{4}|19\\d{2}|20\\d{2})|Situaci[oó]n\\s+del\\s+nivel\\s*:\\s*Completo|\\b(finalizad[oa]|egresad[oa]|graduad[oa]|t[ií]tulo\\s+obtenido|t[ií]tulo\\s+otorgado)\\b)(?![\\s\\S]{0,140}?(?:Actualidad|En\\s+curso|Cursando))",
           "unit_points": 180,
           "max_points": 180
-        },
+  },
        "Especialización (finalizada)": {
-        "pattern": "(?is)(?:^|\\n)\\s*(?:FORMACI[OÓ]N\\s+ACAD[ÉE]MICA(?:\\s+Y\\s+COMPLEMENTARIA)?\\b[\\s\\S]{0,3500})?(?:Especializaci[oó]n\\b|Especialista\\b)[\\s\\S]{0,900}?(?:(?:A[nñ]o|Fecha)\\s+de\\s+finalizaci[oó]n\\s*:\\s*(?:\\d{2}/\\d{4}|19\\d{2}|20\\d{2}))",
-        "unit_points": 100,
-        "max_points": 100
-        },
-        "Título de grado (finalizado)": {
-          "pattern": "(?i)(Licenciad(?:o|a|os|as)|Licenciatura|Ingenier(?:o|a)|Abogad(?:o|a)|M[eé]dic(?:o|a)|Contador(?:a)?|Arquitect(?:o|a)|Bioqu[ií]mic(?:o|a))[\\s\\S]{0,240}?(?:A(?:ñ|n)o\\s+de\\s+finalizaci(?:ó|o)n)\\s*:\\s*(?:\\d{1,2}\\s*/\\s*)?(19\\d{2}|20\\d{2})",
+          "pattern": "(?is)(?:Especializaci[oó]n\\b|Especialista\\b)[\\s\\S]{0,800}?(?:A[nñ]o\\s+de\\s+finalizaci[oó]n:\\s*(?:\\d{2}/\\d{4}|19\\d{2}|20\\d{2})|Situaci[oó]n\\s+del\\s+nivel\\s*:\\s*Completo|\\b(finalizad[oa]|egresad[oa]|graduad[oa]|t[ií]tulo\\s+obtenido|t[ií]tulo\\s+otorgado)\\b)(?![\\s\\S]{0,140}?(?:Actualidad|En\\s+curso|Cursando))",
+          "unit_points": 100,
+          "max_points": 100
+  },
+      "Título de grado (finalizado)": {
+          "pattern": "(?is)(Licenciad(?:o|a|os|as)|Licenciatura|Ingenier(?:o|a)|Abogad(?:o|a)|M[eé]dic(?:o|a)|Contador(?:a)?|Arquitect(?:o|a)|Bioqu[ií]mic(?:o|a)|Odont[oó]log(?:o|a))[\\s\\S]{0,600}?(?:A(?:ñ|n)o\\s+de\\s+finalizaci(?:ó|o)n\\s*:\\s*(?:\\d{1,2}\\s*/\\s*)?(?:19\\d{2}|20\\d{2})|Situaci[oó]n\\s+del\\s+nivel\\s*:\\s*Completo|\\b(finalizad[oa]|egresad[oa]|graduad[oa]|t[ií]tulo\\s+obtenido|t[ií]tulo\\s+otorgado)\\b)(?![\\s\\S]{0,140}?(?:Actualidad|En\\s+curso|Cursando))",
           "unit_points": 40,
           "max_points": 40
-        },
-        "Profesorado/Docencia universitaria (finalizado)": {
-          "pattern": "(?i)(Profesorado|Profesor\\s+Universitario)[\\s\\S]{0,240}?(?:A(?:ñ|n)o\\s+de\\s+finalizaci(?:ó|o)n)\\s*:\\s*(?:\\d{1,2}\\s*/\\s*)?(19\\d{2}|20\\d{2})",
+  },
+      "Profesorado/Docencia universitaria (finalizado)": {
+          "pattern": "(?is)(Profesorado|Profesor\\s+Universitario)[\\s\\S]{0,600}?(?:A(?:ñ|n)o\\s+de\\s+finalizaci(?:ó|o)n\\s*:\\s*(?:\\d{1,2}\\s*/\\s*)?(?:19\\d{2}|20\\d{2})|Situaci[oó]n\\s+del\\s+nivel\\s*:\\s*Completo|\\b(finalizad[oa]|egresad[oa]|graduad[oa]|t[ií]tulo\\s+obtenido|t[ií]tulo\\s+otorgado)\\b)(?![\\s\\S]{0,140}?(?:Actualidad|En\\s+curso|Cursando))",
           "unit_points": 40,
           "max_points": 40
-        },
-        "Posdoctorado (en curso o finalizado)": {
-          "pattern": "(?ims)(?:^|\\n)\\s*(?:Posdoctorado|Postdoctorado|Posdoctoral)\\b[\\s\\S]{0,260}?(?:Universidad|Facultad|CONICET|Instituto|Center|Centre|Laboratorio)\\b[\\s\\S]{0,260}?(?:\\b\\d{2}/\\d{4}\\s*[-–]\\s*(?:\\d{2}/\\d{4}|Actualidad)\\b|\\b\\d{4}\\s*[-–]\\s*(?:\\d{4}|Actualidad)\\b|A[nñ]o\\s+de\\s+finalizaci[oó]n:\\s*(?:19\\d{2}|20\\d{2}))",
+  },
+      "Posdoctorado (en curso o finalizado)": {
+          "pattern": "(?ims)(?:^|\\n)\\s*(?:Posdoctorado|Postdoctorado|Posdoctoral)\\b[\\s\\S]{0,1600}?(?:A[nñ]o\\s+de\\s+finalizaci[oó]n:\\s*(?:19\\d{2}|20\\d{2})|Situaci[oó]n\\s+del\\s+nivel\\s*:\\s*Completo|\\b(finalizad[oa]|egresad[oa]|graduad[oa]|t[ií]tulo\\s+obtenido|t[ií]tulo\\s+otorgado)\\b)(?![\\s\\S]{0,140}?(?:Actualidad|En\\s+curso|Cursando))",
           "unit_points": 40,
           "max_points": 40
         },
