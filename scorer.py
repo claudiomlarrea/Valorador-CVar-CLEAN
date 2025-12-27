@@ -1,5 +1,6 @@
 import json
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Dict, Any, List, Tuple, Optional
 
@@ -18,44 +19,45 @@ class ItemResult:
     item_max_points: float
     evidence: str
 
-# =========================
-# Criteria IO
-# =========================
 def load_criteria(path: str = "criteria.json") -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def _compile(pattern: str) -> re.Pattern:
-    # patrones ya vienen con (?is) en la mayoría de los casos
-    return re.compile(pattern)
+# =========================
+# Normalización
+# =========================
+def _strip_accents(s: str) -> str:
+    s = s or ""
+    s = unicodedata.normalize("NFKD", s)
+    return "".join(ch for ch in s if not unicodedata.combining(ch))
 
-def _pick_evidence(text: str, m: re.Match, max_chars: int = 260) -> str:
-    start = max(0, m.start() - 80)
-    end = min(len(text), m.end() + 120)
-    snippet = text[start:end]
-    snippet = re.sub(r"\s+", " ", snippet).strip()
-    return snippet[:max_chars]
+def _norm_text(s: str) -> str:
+    s = (s or "").replace("\u00A0", " ")
+    s = re.sub(r"[ \t]+", " ", s)
+    s = re.sub(r"\n{3,}", "\n\n", s)
+    return s.strip()
 
-# ==========================================================
-# Formación académica: recorte + parseo + regla dura
-# ==========================================================
-FORMACION_HEADERS = [
-    r"\bFORMACI[ÓO]N\s+ACAD[ÉE]MICA\b",
-    r"\bFORMACION\s+ACADEMICA\b",
+# =========================
+# Formación académica STRICT (TXT CLEAN)
+# =========================
+FORM_HEADERS = [
+    r"^\s*FORMACI[ÓO]N\s+ACAD[ÉE]MICA(?:\s+Y\s+COMPLEMENTARIA)?\s*$",
+    r"^\s*FORMACION\s+ACADEMICA(?:\s+Y\s+COMPLEMENTARIA)?\s*$",
 ]
 
-NEXT_SECTION_MARKERS = [
-    r"\n\s*FORMACI[ÓO]N\s+DE\s+RECURSOS\s+HUMANOS\b",
-    r"\n\s*RECURSOS\s+HUMANOS\b",
-    r"\n\s*RRHH\b",
-    r"\n\s*ANTECEDENTES\b",
-    r"\n\s*FINANCIAMIENTO\b",
-    r"\n\s*ACTIVIDADES\b",
-    r"\n\s*PUBLICACIONES\b",
-    r"\n\s*PRODUCCI[ÓO]N\b",
-    r"\n\s*OTROS\s+ANTECEDENTES\b",
-    r"\n\s*CVar\s*\b",
-    r"\n\s*Fecha\s+de\s+generaci[oó]n\b",
+# cortes “seguros” en TXT CLEAN
+NEXT_MARKERS = [
+    r"^\s*FORMACI[ÓO]N\s+DE\s+RECURSOS\s+HUMANOS\s*$",
+    r"^\s*RECURSOS\s+HUMANOS\s*$",
+    r"^\s*RRHH\s*$",
+    r"^\s*PRODUCCI[ÓO]N\s*$",
+    r"^\s*PUBLICACIONES\s*$",
+    r"^\s*ANTECEDENTES\s*$",
+    r"^\s*ACTIVIDADES\s*$",
+    r"^\s*EXPERIENCIA\s*$",
+    r"^\s*CARGOS\s*$",
+    r"^\s*CVar\b",
+    r"^\s*Fecha\s+de\s+generaci[oó]n\b",
 ]
 
 RE_IN_PROGRESS = re.compile(
@@ -68,10 +70,7 @@ RE_FINISH_YEAR = re.compile(
     re.IGNORECASE
 )
 
-RE_SITUACION_COMPLETO = re.compile(
-    r"Situaci[oó]n\s+del\s+nivel\s*:\s*Completo",
-    re.IGNORECASE
-)
+RE_SITUACION_COMPLETO = re.compile(r"Situaci[oó]n\s+del\s+nivel\s*:\s*Completo", re.IGNORECASE)
 
 RE_COMPLETION_CUES = re.compile(
     r"\b(finalizad[oa]|egresad[oa]|graduad[oa]|t[ií]tulo\s+obtenido|t[ií]tulo\s+otorgado|complet(?:o|ada))\b",
@@ -80,40 +79,47 @@ RE_COMPLETION_CUES = re.compile(
 
 RE_ENTRY_START = re.compile(
     r"^\s*(?:[-•·*]\s*)?"
-    r"(Doctorado|Doctor\s+en|Doctor\s+de\s+la\s+Universidad|Doctor\b|"
-    r"Maestr[ií]a|"
+    r"(Doctorado|Doctor\s+en|Doctor\s+de\s+la\s+Universidad|"
+    r"Maestr[ií]a|Mag[ií]ster|"
     r"Especializaci[oó]n|Especialista|"
-    r"Posdoctorado|Postdoctorado|"
-    r"Profesorado|Profesor\s+Universitario|"
-    r"Licenciatura|Licenciad[oa]s?|Tecnicatura|T[eé]cnica\s+Universitaria|"
-    r"Contador|Contadora|Abogado|Abogada|Ingenier|Bioqu[ií]mic|M[eé]dic|Farmac[eé]utic|Arquitect|Odont[oó]log)\b",
+    r"Posdoctorado|Postdoctorado|Posdoctoral|"
+    r"Profesorado|Profesor\s+Universitario|Profesor\s+en|"
+    r"Licenciatura|Licenciad[oa]s?|T[eé]cnica\s+Universitaria|Tecnicatura|"
+    r"Contador|Contadora|Contadur[ií]a|"
+    r"Abogado|Abogada|Ingenier|Bioqu[ií]mic|M[eé]dic|Farmac[eé]utic|Arquitect|Odont[oó]log)\b",
     re.IGNORECASE
 )
 
-def _normalize_spaces(s: str) -> str:
-    s = (s or "").replace("\u00A0", " ")
-    s = re.sub(r"[ \t]+", " ", s)
-    s = re.sub(r"\n{3,}", "\n\n", s)
-    return s.strip()
+def _is_header_line(line: str, header_patterns: List[str]) -> bool:
+    for hp in header_patterns:
+        if re.search(hp, line, flags=re.IGNORECASE):
+            return True
+    return False
 
-def extract_formacion_academica_block(full_text: str) -> str:
-    txt = _normalize_spaces(full_text)
-    start_idx: Optional[int] = None
-    for h in FORMACION_HEADERS:
-        m = re.search(h, txt, flags=re.IGNORECASE)
-        if m:
-            start_idx = m.end()
+def extract_formacion_block(text: str) -> str:
+    """
+    Extrae la sección 'FORMACIÓN ACADÉMICA' del TXT CLEAN.
+    Si hay múltiples bloques (por repetición), usa el primero.
+    """
+    t = _norm_text(text)
+    lines = t.splitlines()
+
+    start_idx = None
+    for i, ln in enumerate(lines):
+        if _is_header_line(ln.strip(), FORM_HEADERS):
+            start_idx = i + 1
             break
     if start_idx is None:
         return ""
 
-    tail = txt[start_idx:]
-    end = len(tail)
-    for mk in NEXT_SECTION_MARKERS:
-        m2 = re.search(mk, tail, flags=re.IGNORECASE)
-        if m2:
-            end = min(end, m2.start())
-    return tail[:end].strip()
+    end_idx = len(lines)
+    for j in range(start_idx, len(lines)):
+        if _is_header_line(lines[j].strip(), NEXT_MARKERS):
+            end_idx = j
+            break
+
+    block = "\n".join(lines[start_idx:end_idx]).strip()
+    return block
 
 def split_entries(block: str) -> List[str]:
     if not block:
@@ -129,16 +135,15 @@ def split_entries(block: str) -> List[str]:
             buf = [line]
         else:
             buf.append(line)
-
     if buf:
         entries.append("\n".join(buf).strip())
-
     return entries
 
 def entry_is_completed(entry: str) -> bool:
-    # regla dura: Actualidad/en curso invalida siempre
+    # si está en curso, nunca
     if RE_IN_PROGRESS.search(entry):
         return False
+    # finalización explícita
     if RE_FINISH_YEAR.search(entry):
         return True
     if RE_SITUACION_COMPLETO.search(entry):
@@ -149,39 +154,45 @@ def entry_is_completed(entry: str) -> bool:
 
 def classify_entry(entry: str) -> str:
     e = entry or ""
-    if re.search(r"\bPosdoctorado\b|\bPostdoctorado\b", e, re.IGNORECASE):
+    if re.search(r"\b(Posdoctorado|Postdoctorado|Posdoctoral)\b", e, re.IGNORECASE):
         return "posdoc"
-    if re.search(r"\bDoctorado\b|\bDoctor\s+en\b|\bDoctor\s+de\s+la\s+Universidad\b|\bDoctor\b", e, re.IGNORECASE):
+    if re.search(r"\bDoctorado\b|\bDoctor\s+en\b|\bDoctor\s+de\s+la\s+Universidad\b", e, re.IGNORECASE):
         return "doctorado"
-    # IMPORTANTÍSIMO: acá NO contamos "Magister" como maestría (decisión institucional)
-    if re.search(r"\bMaestr[ií]a\b", e, re.IGNORECASE):
+    if re.search(r"\bMaestr[ií]a\b|\bMag[ií]ster\b", e, re.IGNORECASE):
         return "maestria"
     if re.search(r"\bEspecializaci[oó]n\b|\bEspecialista\b", e, re.IGNORECASE):
         return "especializacion"
-    if re.search(r"\bProfesorado\b|\bProfesor\s+Universitario\b", e, re.IGNORECASE):
+    if re.search(r"\bProfesorado\b|\bProfesor\s+Universitario\b|\bProfesor\s+en\b", e, re.IGNORECASE):
         return "profesorado"
     if re.search(
-        r"\b(Licenciatura|Licenciad[oa]s?|Tecnicatura|T[eé]cnica\s+Universitaria|"
-        r"Contador|Contadora|Abogado|Abogada|Ingenier|Bioqu[ií]mic|M[eé]dic|Farmac[eé]utic|Arquitect|Odont[oó]log)\b",
-        e, re.IGNORECASE
+        r"\b(Licenciatura|Licenciad[oa]s?|T[eé]cnica\s+Universitaria|Tecnicatura|"
+        r"Contador|Contadora|Contadur[ií]a|Abogado|Abogada|Ingenier|Bioqu[ií]mic|M[eé]dic|Farmac[eé]utic|Arquitect|Odont[oó]log)\b",
+        e,
+        re.IGNORECASE
     ):
         return "grado"
     return "otro"
 
-def count_formacion_completed(full_text: str) -> Dict[str, int]:
-    block = extract_formacion_academica_block(full_text)
+def _norm_key(s: str) -> str:
+    s = (s or "").lower().strip()
+    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"[\"'`´]", "", s)
+    return s
+
+def _pick_entry_evidence(entry: str, max_chars: int = 260) -> str:
+    snip = re.sub(r"\s+", " ", (entry or "")).strip()
+    return snip[:max_chars]
+
+def compute_formacion_counts(text: str) -> Tuple[Dict[str, int], Dict[str, str]]:
+    """
+    Devuelve counts por tipo + evidencia (primer match “bueno” por tipo)
+    """
+    block = extract_formacion_block(text)
     entries = split_entries(block)
 
-    counts = {
-        "doctorado": 0,
-        "maestria": 0,
-        "especializacion": 0,
-        "grado": 0,
-        "profesorado": 0,
-        "posdoc": 0,
-    }
+    counts = {"doctorado": 0, "maestria": 0, "especializacion": 0, "grado": 0, "profesorado": 0, "posdoc": 0}
+    evidence = {k: "" for k in counts.keys()}
 
-    # dedupe simple por primeras ~350 chars normalizadas
     seen = set()
     for e in entries:
         t = classify_entry(e)
@@ -189,17 +200,56 @@ def count_formacion_completed(full_text: str) -> Dict[str, int]:
             continue
         if not entry_is_completed(e):
             continue
-        key = re.sub(r"\s+", " ", e.lower()).strip()[:350]
-        if key in seen:
+
+        # dedup por tipo + primeras ~120 chars normalizadas
+        k = (t, _norm_key(re.sub(r"\s+", " ", e)[:120]))
+        if k in seen:
             continue
-        seen.add(key)
+        seen.add(k)
+
         counts[t] += 1
+        if not evidence[t]:
+            evidence[t] = _pick_entry_evidence(e)
 
-    return counts
+    return counts, evidence
 
-# ==========================================================
-# Scoring
-# ==========================================================
+# =========================
+# Regex scoring genérico
+# =========================
+def _compile(pattern: str) -> re.Pattern:
+    return re.compile(pattern)
+
+def _pick_evidence(text: str, m: re.Match, max_chars: int = 260) -> str:
+    start = max(0, m.start() - 80)
+    end = min(len(text), m.end() + 120)
+    snippet = text[start:end]
+    snippet = re.sub(r"\s+", " ", snippet).strip()
+    return snippet[:max_chars]
+
+def _is_formacion_section(section_name: str) -> bool:
+    s = _strip_accents(section_name).lower()
+    return s.startswith("formacion academica")
+
+def _is_title_item(item_name: str) -> bool:
+    s = _strip_accents(item_name).lower()
+    return bool(re.search(r"(doctorad|maestr|magister|especializ|posdoc|postdoc|posdoctor|postdoctor|titulo de grado|grado|profesorado)", s))
+
+def _override_key_for_item(item_name: str) -> Optional[str]:
+    s = _strip_accents(item_name).lower()
+    if "doctorad" in s:
+        return "doctorado"
+    if "maestr" in s or "magister" in s:
+        return "maestria"
+    if "especializ" in s or "especialista" in s:
+        return "especializacion"
+    if "titulo de grado" in s or s.strip() == "grado":
+        return "grado"
+    if "profesorado" in s or "docencia universitaria" in s:
+        return "profesorado"
+    if "posdoc" in s or "postdoc" in s or "posdoctor" in s or "postdoctor" in s:
+        return "posdoc"
+    return None
+
 def score_text(
     text: str,
     criteria: Dict[str, Any],
@@ -209,8 +259,8 @@ def score_text(
     sections = criteria.get("sections", {})
     categorias = criteria.get("categorias", {})
 
-    # ✅ Conteos robustos SOLO para Formación
-    form_counts = count_formacion_completed(text)
+    # STRICT counts para Formación
+    form_counts, form_evidence = compute_formacion_counts(text)
 
     results: List[ItemResult] = []
     section_totals: Dict[str, float] = {}
@@ -223,54 +273,42 @@ def score_text(
         items = sec.get("items", {})
         for item_name, item in items.items():
             pattern = item.get("pattern", "")
+            if not pattern:
+                continue
+
             unit_points = float(item.get("unit_points", 0))
             item_max = float(item.get("max_points", 0))
 
-            # -------------------------
-            # OVERRIDE Formación Académica
-            # -------------------------
+            # ===== Overrides STRICT para títulos SOLO en Formación =====
             count = 0
             evidence = ""
+            used_override = False
 
-            if section_name.strip().lower().startswith("formación académica") or section_name.strip().lower().startswith("formacion academica"):
-                il = item_name.lower()
-
-                if "doctor" in il:
-                    count = form_counts.get("doctorado", 0)
-                elif "maestr" in il:
-                    count = form_counts.get("maestria", 0)
-                elif "especial" in il:
-                    count = form_counts.get("especializacion", 0)
-                elif "título de grado" in il or "titulo de grado" in il:
-                    count = form_counts.get("grado", 0)
-                elif "profesorado" in il or "docencia universitaria" in il:
-                    count = form_counts.get("profesorado", 0)
-                elif "posdoctor" in il or "posdoc" in il or "postdoc" in il:
-                    count = form_counts.get("posdoc", 0)
+            if _is_formacion_section(section_name):
+                k = _override_key_for_item(item_name)
+                if k:
+                    count = int(form_counts.get(k, 0))
+                    evidence = form_evidence.get(k, "")[:evidence_max_chars]
+                    used_override = True
+                    pattern_used = "<OVERRIDE_FORMACION_STRICT>"
                 else:
-                    # para cursos/idiomas/etc usamos regex normal
-                    count = -1  # marcador para seguir por regex
-
-                if count >= 0:
-                    # evidencia: no hay "match" aquí porque no usamos regex del item
-                    evidence = "Conteo por parseo de FORMACION ACADEMICA (regla dura de finalización)."
-
-            # -------------------------
-            # Regex normal (o fallback de Formación para ítems no override)
-            # -------------------------
-            if count == -1:
-                if not pattern:
+                    pattern_used = pattern
+            else:
+                # bloqueo: si es un ítem de títulos, NO se cuenta fuera de Formación
+                if _is_title_item(item_name):
                     count = 0
+                    evidence = ""
+                    used_override = True
+                    pattern_used = "<BLOCKED_OUTSIDE_FORMACION>"
                 else:
-                    try:
-                        rx = _compile(pattern)
-                        matches = list(rx.finditer(text))
-                        count = len(matches)
-                        if matches:
-                            evidence = _pick_evidence(text, matches[0], max_chars=evidence_max_chars)
-                    except re.error:
-                        count = 0
-                        evidence = "Regex inválida (no se pudo compilar)."
+                    pattern_used = pattern
+
+            if not used_override:
+                rx = _compile(pattern)
+                matches = list(rx.finditer(text))
+                count = len(matches)
+                if matches:
+                    evidence = _pick_evidence(text, matches[0], max_chars=evidence_max_chars)
 
             raw_points = count * unit_points
             capped_item_points = min(raw_points, item_max) if item_max >= 0 else raw_points
@@ -279,7 +317,7 @@ def score_text(
                 ItemResult(
                     section=section_name,
                     item=item_name,
-                    pattern=pattern,
+                    pattern=pattern_used,
                     count=count,
                     unit_points=unit_points,
                     raw_points=raw_points,
@@ -295,7 +333,7 @@ def score_text(
         section_totals[section_name] = sec_sum
         total_points += sec_sum
 
-    # Categoría
+    # categoría
     category = "VI"
     if categorias:
         ordered = sorted(
