@@ -1,0 +1,52 @@
+{
+  "categories": {
+    "I": 1500,
+    "II": 1200,
+    "III": 800,
+    "IV": 450,
+    "V": 150,
+    "VI": 0
+  },
+  "sections": {
+    "Formación académica y complementaria": {
+      "max_points": 580,
+      "items": {
+        "Doctorado finalizado": {
+          "pattern": "(?is)\\bDoctorad[oa]\\b[\\s\\S]{0,250}?Año de finalización:\\s*(19\\d{2}|20\\d{2})",
+          "unit_points": 300,
+          "max_points": 300
+        },
+        "Maestría finalizada": {
+          "pattern": "(?is)\\bMaestr[ií]a\\b[\\s\\S]{0,250}?Año de finalización:\\s*(19\\d{2}|20\\d{2})",
+          "unit_points": 180,
+          "max_points": 180
+        },
+        "Especialización finalizada": {
+          "pattern": "(?is)\\bEspecializaci[óo]n\\b[\\s\\S]{0,250}?Año de finalización:\\s*(19\\d{2}|20\\d{2})",
+          "unit_points": 120,
+          "max_points": 120
+        }
+      }
+    },
+    "Producción científica": {
+      "max_points": 470,
+      "items": {
+        "Artículo en revista": {
+          "pattern": "(?is)\\bArt[ií]culo\\b[\\s\\S]{0,500}?(\\bISSN\\b|\\bDOI\\b|\\bRevista\\b)",
+          "unit_points": 40,
+          "max_points": 240
+        },
+        "Capítulo de libro": {
+          "pattern": "(?is)\\bCap[ií]tulo\\b[\\s\\S]{0,400}?(\\bISBN\\b|\\bEditorial\\b)",
+          "unit_points": 35,
+          "max_points": 140
+        },
+        "Libro": {
+          "pattern": "(?is)\\bLibro\\b[\\s\\S]{0,400}?(\\bISBN\\b|\\bEditorial\\b)",
+          "unit_points": 60,
+          "max_points": 180
+        }
+      }
+    }
+  }
+}
