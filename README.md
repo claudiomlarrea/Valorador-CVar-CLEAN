@@ -1,11 +1,16 @@
-# Valorador CVar CLEAN (TXT)
+# Valorador-CVarCLEAN-TXT-Strict (UCCuyo)
 
-Repo 2 del flujo:
+App Streamlit para valorar archivos *_CVAR_CLEAN.txt generados por el Normalizador.
 
-1) **Normalizador-de-CVar** (Repo 1): PDF CONICET → `*_CVAR_CLEAN.txt`
-2) **Valorador-CVar-CLEAN** (este repo): `*_CVAR_CLEAN.txt` → Puntaje + Categoría + Excel/Word
+## Criterio STRICT (clave)
+- Doctorado / Maestría / Especialización / Grado / Profesorado / Posdoc:
+  SOLO puntúa si hay evidencia explícita de finalización:
+  - "Año de finalización: YYYY" (o MM/YYYY)
+  - "Situación del nivel: Completo"
+  - cues: "finalizado/egresado/graduado/título obtenido/título otorgado"
+- Si aparece "Actualidad / En curso / Cursando" → NO puntúa.
+- Los títulos NO se cuentan fuera de la sección "FORMACIÓN ACADÉMICA" (bloqueo anti-falsos positivos).
 
-## Ejecutar
-```bash
+## Ejecutar local
 pip install -r requirements.txt
 streamlit run app.py
