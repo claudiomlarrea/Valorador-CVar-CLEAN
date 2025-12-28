@@ -35,7 +35,7 @@
           "max_points": 40
   },
       "Posdoctorado (en curso o finalizado)": {
-        "pattern": "(?is)\\b(Posdoctorado|Postdoctorado)\\b(?![\\s\\S]{0,200}\\bDoctorado\\b)[\\s\\S]{0,800}?(?:A(?:ñ|n)o\\s+de\\s+(?:finalizaci[oó]n|obtenci[oó]n|graduaci[oó]n)|\\b(en\\s+curso|finalizad[oa])\\b)",
+        "pattern": "(?is)\\b(Postdoctorado|Postdoctoral|Post-Doctoral|Post Doc)\\b[\\s\\S]{0,800}?(?:A(?:ñ|n)o\\s+de\\s+(?:inicio|finalizaci[oó]n)|Situaci[oó]n\\s*:\\s*(?:Completo|Finalizado|En\\s+curso)|\\b(en\\s+curso|finalizad[oa])\\b)",
         "unit_points": 40,
         "max_points": 40
  },
