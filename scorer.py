@@ -1,12 +1,11 @@
 import json
 import re
-import unicodedata
 from dataclasses import dataclass
 from typing import Dict, Any, List, Tuple, Optional
 
 
 # =========================
-# Result model
+# Results struct
 # =========================
 @dataclass
 class ItemResult:
@@ -22,7 +21,7 @@ class ItemResult:
 
 
 # =========================
-# Criteria loader
+# IO
 # =========================
 def load_criteria(path: str = "criteria.json") -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
@@ -30,28 +29,10 @@ def load_criteria(path: str = "criteria.json") -> Dict[str, Any]:
 
 
 # =========================
-# Text helpers
+# Small helpers
 # =========================
-def _strip_accents(s: str) -> str:
-    if not s:
-        return ""
-    s = unicodedata.normalize("NFKD", s)
-    return "".join(ch for ch in s if not unicodedata.combining(ch))
-
-
-def _normalize_spaces(s: str) -> str:
-    s = s.replace("\u00A0", " ")
-    s = re.sub(r"[ \t]+", " ", s)
-    s = re.sub(r"\n{3,}", "\n\n", s)
-    return s.strip()
-
-
-def _compile(pattern: str) -> Optional[re.Pattern]:
-    try:
-        return re.compile(pattern)
-    except re.error:
-        return None
-
+def _compile(pattern: str) -> re.Pattern:
+    return re.compile(pattern, flags=re.IGNORECASE | re.UNICODE)
 
 def _pick_evidence(text: str, m: re.Match, max_chars: int = 260) -> str:
     start = max(0, m.start() - 80)
@@ -60,25 +41,42 @@ def _pick_evidence(text: str, m: re.Match, max_chars: int = 260) -> str:
     snippet = re.sub(r"\s+", " ", snippet).strip()
     return snippet[:max_chars]
 
+def _norm_spaces(s: str) -> str:
+    if not s:
+        return ""
+    s = s.replace("\u00A0", " ")
+    s = re.sub(r"[ \t]+", " ", s)
+    s = re.sub(r"\n{3,}", "\n\n", s)
+    return s.strip()
+
+def _norm_key(s: str) -> str:
+    s = (s or "").lower().strip()
+    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"[\"'`´]", "", s)
+    return s
+
 
 # ==========================================================
-# Formación: recorte + parseo por entradas (ANTI-REGEX-LARGO)
+# Formación Académica: extracción + parse por entradas
+# (evita regex “greedy” que se come 3 doctorados como 1)
 # ==========================================================
-FORMACION_HEADERS = [
+
+# headers típicos del CVAR
+_FORM_HEADERS = [
     r"\bFORMACI[ÓO]N\s+ACAD[ÉE]MICA\b",
-    r"\bFORMACI[ÓO]N\s+ACAD[ÉE]MICA\s+Y\s+COMPLEMENTARIA\b",
     r"\bFORMACION\s+ACADEMICA\b",
+    r"\bFORMACI[ÓO]N\s+ACAD[ÉE]MICA\s+Y\s+COMPLEMENTARIA\b",
     r"\bFORMACION\s+ACADEMICA\s+Y\s+COMPLEMENTARIA\b",
 ]
 
-# Marcadores de siguiente sección (cortes duros)
-NEXT_SECTION_MARKERS = [
+# cortes típicos (secciones siguientes)
+_NEXT_MARKERS = [
     r"\n\s*FORMACI[ÓO]N\s+DE\s+RECURSOS\s+HUMANOS\b",
     r"\n\s*RECURSOS\s+HUMANOS\b",
     r"\n\s*RRHH\b",
-    r"\n\s*PUBLICACIONES\b",
-    r"\n\s*PRODUCCI[ÓO]N\b",
     r"\n\s*ANTECEDENTES\b",
+    r"\n\s*PRODUCCI[ÓO]N\b",
+    r"\n\s*PUBLICACIONES\b",
     r"\n\s*ACTIVIDADES\b",
     r"\n\s*EXPERIENCIA\b",
     r"\n\s*CARGOS\b",
@@ -86,91 +84,64 @@ NEXT_SECTION_MARKERS = [
     r"\n\s*Fecha\s+de\s+generaci[oó]n\b",
 ]
 
-# Si aparecen, NO cortar automáticamente porque a veces están dentro de la lista de formación
-SOFT_MARKERS = [
-    r"\n\s*FORMACI[ÓO]N\s+COMPLEMENTARIA\b",
-    r"\n\s*CURSOS\b",
-    r"\n\s*IDIOMAS\b",
-]
-
-RE_IN_PROGRESS = re.compile(
-    r"\b(Actualidad|En\s+curso|Cursando|Actualmente|Vigente|En\s+desarrollo|Hasta\s+la\s+actualidad|A\s+la\s+fecha)\b",
+# entradas que arrancan una formación (incluye “Licenciado en …”)
+_RE_ENTRY_START = re.compile(
+    r"(?im)^\s*(?:[-•·*]|\&\#61485;)?\s*"
+    r"("
+    r"Posdoctorado|Postdoctorado|"
+    r"Doctorado|Doctor\s+en|Doctor\s+de\s+la\s+Universidad|"
+    r"Maestr[ií]a|Mag[ií]ster|Magister|"
+    r"Especializaci[oó]n|Especialista|"
+    r"Profesorado|Profesor\s+Universitario|Profesor\s+en|"
+    r"Licenciatura|Licenciad[oa]\s+en|Licenciad[oa]s?\b|"
+    r"T[eé]cnica\s+Universitaria|Tecnicatura|"
+    r"Contador|Contadora|Contadur[ií]a|"
+    r"Abogado|Abogada|Ingenier|Bioqu[ií]mic|M[eé]dic|Farmac[eé]utic|Arquitect|Odont[oó]log"
+    r")\b",
     re.IGNORECASE
 )
 
-RE_FINISH_YEAR = re.compile(
-    r"A(?:ñ|n)o\s+de\s+(?:finalizaci[oó]n|obtenci[oó]n|graduaci[oó]n)\s*[:\-–]?\s*([0-3]?\d\s*[/\-]\s*\d{4}|\d{4})",
+_RE_IN_PROGRESS = re.compile(
+    r"\b(Actualidad|En\s+curso|Cursando|Actualmente|Vigente|Hasta\s+la\s+actualidad|A\s+la\s+fecha)\b",
     re.IGNORECASE
 )
 
-RE_SITUACION_COMPLETO = re.compile(
-    r"Situaci[oó]n\s+del\s+nivel\s*[:\-–]?\s*Completo",
+_RE_FINISH = re.compile(
+    r"A(?:ñ|n)o\s+de\s+(?:finalizaci[oó]n|obtenci[oó]n|graduaci[oó]n)\s*[:\-–]?\s*(?:\d{2}/\d{4}|19\d{2}|20\d{2})",
     re.IGNORECASE
 )
 
-RE_COMPLETION_CUES = re.compile(
+_RE_SITUACION_COMPLETO = re.compile(r"Situaci[oó]n\s+del\s+nivel\s*[:\-–]?\s*Completo", re.IGNORECASE)
+
+_RE_COMPLETION_CUES = re.compile(
     r"\b(finalizad[oa]|egresad[oa]|graduad[oa]|t[ií]tulo\s+obtenido|t[ií]tulo\s+otorgado|complet(?:o|ada))\b",
     re.IGNORECASE
 )
 
-# Inicio de entrada (incluye variantes frecuentes)
-RE_ENTRY_START = re.compile(
-    r"^\s*(?:[-•·*]\s*)?"
-    r"(Doctorado|Doctor\s+en|Doctor\s+de\s+la\s+Universidad|"
-    r"Maestr[ií]a|Mag[ií]ster|Magister|"
-    r"Especializaci[oó]n|Especialista|"
-    r"Posdoctorado|Postdoctorado|Posdoctoral|Postdoctoral|"
-    r"Profesorado|Profesor\s+Universitario|Profesor\s+en|"
-    r"Licenciatura|Licenciad[oa]s?|"
-    r"Tecnicatura|T[eé]cnica\s+Universitaria|"
-    r"Contador(?:a)?|Contadur[ií]a|"
-    r"Abogad[oa]|Ingenier[oa]?|Bioqu[ií]mic[oa]?|M[eé]dic[oa]?|Farmac[eé]utic[oa]?|Arquitect[oa]?|Odont[oó]log[oa]?)\b",
-    re.IGNORECASE
-)
-
-# Contextos que NO son formación (evitar confusiones)
-RE_BECARIO_CONTEXT = re.compile(
+# contexto que NO queremos que dispare posdoc
+_RE_BECARIO_CONTEXT = re.compile(
     r"\b(becari[oa]s?|beca|direcci[oó]n|co[- ]?direcci[oó]n|tesista|investigador/a|investigador)\b",
     re.IGNORECASE
 )
 
 def _extract_formacion_block(full_text: str) -> str:
-    txt = _normalize_spaces(full_text)
-    start_idx = None
-    for h in FORMACION_HEADERS:
+    txt = _norm_spaces(full_text)
+    start = None
+    for h in _FORM_HEADERS:
         m = re.search(h, txt, flags=re.IGNORECASE)
         if m:
-            start_idx = m.end()
+            start = m.end()
             break
-    if start_idx is None:
+    if start is None:
         return ""
 
-    tail = txt[start_idx:]
-
-    # candidatos de corte
-    candidates: List[Tuple[int, str]] = []
-    for mk in NEXT_SECTION_MARKERS + SOFT_MARKERS:
+    tail = txt[start:]
+    end = len(tail)
+    for mk in _NEXT_MARKERS:
         m2 = re.search(mk, tail, flags=re.IGNORECASE)
         if m2:
-            candidates.append((m2.start(), mk))
-
-    if not candidates:
-        return tail.strip()
-
-    candidates.sort(key=lambda x: x[0])
-
-    # si el corte es blando y después siguen títulos típicos, lo ignoramos
-    for pos, mk in candidates:
-        is_soft = any(re.search(sm, mk, flags=re.IGNORECASE) for sm in SOFT_MARKERS)
-        if is_soft:
-            after = tail[pos:pos + 6000]
-            if re.search(r"\b(Doctorado|Doctor\s+en|Maestr[ií]a|Mag[ií]ster|Magister|Especializaci[oó]n|Licenciatura|Licenciad[oa]s?)\b",
-                         after, re.IGNORECASE):
-                continue
-        return tail[:pos].strip()
-
-    return tail.strip()
-
+            end = min(end, m2.start())
+    return tail[:end].strip()
 
 def _split_entries(block: str) -> List[str]:
     if not block:
@@ -180,30 +151,50 @@ def _split_entries(block: str) -> List[str]:
 
     entries: List[str] = []
     buf: List[str] = []
+
     for line in lines:
-        if RE_ENTRY_START.search(line) and buf:
+        if _RE_ENTRY_START.search(line) and buf:
             entries.append("\n".join(buf).strip())
             buf = [line]
         else:
             buf.append(line)
+
     if buf:
         entries.append("\n".join(buf).strip())
+
+    # fallback si quedó todo pegado (pasa en algunos CVAR)
+    if len(entries) == 1 and len(entries[0]) > 1500:
+        parts = re.split(
+            r"(?i)(?=Posdoctorado\b|Postdoctorado\b|Doctorado\b|Doctor\s+en\b|Doctor\s+de\s+la\s+Universidad\b|"
+            r"Maestr[ií]a\b|Mag[ií]ster\b|Magister\b|Especializaci[oó]n\b|Licenciad[oa]\s+en\b|Licenciatura\b)",
+            entries[0]
+        )
+        entries = [p.strip() for p in parts if p.strip()]
+
     return entries
 
-
-def _entry_is_completed(entry: str) -> bool:
-    # si dice en curso, NO
-    if RE_IN_PROGRESS.search(entry):
+def _entry_completed(entry: str) -> bool:
+    # si dice en curso/actualidad, NO
+    if _RE_IN_PROGRESS.search(entry):
         return False
     # evidencias explícitas
-    if RE_FINISH_YEAR.search(entry):
+    if _RE_FINISH.search(entry):
         return True
-    if RE_SITUACION_COMPLETO.search(entry):
+    if _RE_SITUACION_COMPLETO.search(entry):
         return True
-    if RE_COMPLETION_CUES.search(entry):
+    if _RE_COMPLETION_CUES.search(entry):
         return True
     return False
 
+def _finish_token(entry: str) -> str:
+    m = _RE_FINISH.search(entry)
+    if m:
+        return re.sub(r"\s+", "", m.group(0))
+    if _RE_SITUACION_COMPLETO.search(entry):
+        return "COMPLETO"
+    if _RE_COMPLETION_CUES.search(entry):
+        return "FINALIZADO"
+    return ""
 
 def _first_line(entry: str) -> str:
     for l in entry.splitlines():
@@ -212,102 +203,89 @@ def _first_line(entry: str) -> str:
             return l
     return ""
 
-
-def _classify_entry(entry: str) -> str:
-    e = entry.lower()
-
-    if re.search(r"\b(posdoctorado|postdoctorado|posdoctoral|postdoctoral)\b", e, re.IGNORECASE):
+def _classify(entry: str) -> str:
+    if re.search(r"\b(Posdoctorado|Postdoctorado)\b", entry, re.IGNORECASE):
         return "posdoc"
-
-    if re.search(r"\bdoctorado\b|\bdoctor\s+en\b|\bdoctor\s+de\s+la\s+universidad\b", e, re.IGNORECASE):
+    if re.search(r"\bDoctorado\b|\bDoctor\s+en\b|\bDoctor\s+de\s+la\s+Universidad\b", entry, re.IGNORECASE):
         return "doctorado"
-
-    if re.search(r"\bmaestr[ií]a\b|\bmag[ií]ster\b|\bmagister\b", e, re.IGNORECASE):
+    if re.search(r"\bMaestr[ií]a\b|\bMag[ií]ster\b|\bMagister\b", entry, re.IGNORECASE):
         return "maestria"
-
-    if re.search(r"\bespecializaci[oó]n\b|\bespecialista\b", e, re.IGNORECASE):
+    if re.search(r"\bEspecializaci[oó]n\b|\bEspecialista\b", entry, re.IGNORECASE):
         return "especializacion"
-
-    if re.search(r"\bprofesorado\b|\bprofesor\s+universitario\b|\bprofesor\s+en\b", e, re.IGNORECASE):
+    if re.search(r"\bProfesorado\b|\bProfesor\s+en\b|\bProfesor\s+Universitario\b", entry, re.IGNORECASE):
         return "profesorado"
-
-    # grado: incluye "Licenciado en ..." (tu caso: Teología Moral)
     if re.search(
-        r"\b(licenciatura|licenciad[oa]s?|ingenier[oa]?|abogad[oa]|m[eé]dic[oa]?|contador(?:a)?|"
-        r"arquitect[oa]?|bioqu[ií]mic[oa]?|farmac[eé]utic[oa]?|odont[oó]log[oa]?)\b",
-        e, re.IGNORECASE
+        r"\b(Licenciatura|Licenciad[oa]\s+en|Licenciad[oa]s?\b|T[eé]cnica\s+Universitaria|Tecnicatura|"
+        r"Contador|Contadora|Contadur[ií]a|Abogado|Abogada|Ingenier|Bioqu[ií]mic|M[eé]dic|Farmac[eé]utic|Arquitect|Odont[oó]log)\b",
+        entry,
+        re.IGNORECASE
     ):
         return "grado"
-
     return "otro"
 
-
-def _count_formacion(full_text: str) -> Tuple[Dict[str, int], Dict[str, List[str]]]:
+def _count_formacion(full_text: str) -> Tuple[Dict[str, int], Dict[str, str]]:
     """
     Devuelve:
-    - counts: cantidades reales (doctorado/maestria/especializacion/grado/profesorado/posdoc)
-    - evidences: lista de títulos (1ª línea) por tipo
+    - counts por tipo (doctorado, maestria, especializacion, grado, profesorado, posdoc)
+    - evidence por tipo (1ra evidencia para mostrar)
     """
     block = _extract_formacion_block(full_text)
     entries = _split_entries(block)
 
-    counts = {"doctorado": 0, "maestria": 0, "especializacion": 0, "grado": 0, "profesorado": 0, "posdoc": 0}
-    evid = {k: [] for k in counts.keys()}
+    counts = {
+        "doctorado": 0,
+        "maestria": 0,
+        "especializacion": 0,
+        "grado": 0,
+        "profesorado": 0,
+        "posdoc": 0,
+    }
+    evidence = {k: "" for k in counts.keys()}
 
     seen = set()
 
-    for ent in entries:
-        tipo = _classify_entry(ent)
-
-        # posdoc: NO contar si es contexto RRHH/becas
-        if tipo == "posdoc":
-            if RE_BECARIO_CONTEXT.search(ent):
-                continue
-            # si querés exigir finalización explícita para posdoc, descomentá:
-            # if not _entry_is_completed(ent): continue
-            title = _first_line(ent)
-            key = (tipo, _strip_accents(title.lower()))
-            if key in seen:
-                continue
-            seen.add(key)
-            counts[tipo] += 1
-            evid[tipo].append(title)
-            continue
-
+    for e in entries:
+        tipo = _classify(e)
         if tipo not in counts:
             continue
 
-        # SOLO títulos finalizados
-        if not _entry_is_completed(ent):
+        # posdoc: SOLO si realmente es posdoctorado y no contexto de becas/rrhh
+        if tipo == "posdoc":
+            if _RE_BECARIO_CONTEXT.search(e):
+                continue
+
+        if not _entry_completed(e):
             continue
 
-        title = _first_line(ent)
-        key = (tipo, _strip_accents(title.lower()))
+        title = _first_line(e)
+        fin = _finish_token(e)
+        key = (tipo, _norm_key(title), _norm_key(fin))
         if key in seen:
             continue
         seen.add(key)
 
         counts[tipo] += 1
-        evid[tipo].append(title)
+        if not evidence[tipo]:
+            evidence[tipo] = re.sub(r"\s+", " ", e.strip())[:260]
 
-    return counts, evid
+    return counts, evidence
 
 
-# =========================
-# Scoring
-# =========================
+# ==========================================================
+# SCORE
+# ==========================================================
 def score_text(
     text: str,
     criteria: Dict[str, Any],
     evidence_max_chars: int = 260
 ) -> Tuple[List[ItemResult], Dict[str, float], float, str, Dict[str, Any]]:
+    text = _norm_spaces(text)
 
-    text = _normalize_spaces(text)
     sections = criteria.get("sections", {})
     categorias = criteria.get("categorias", {})
 
-    # Conteo robusto SOLO para Formación
-    form_counts, form_evid = _count_formacion(text)
+    # ✅ override SOLO para Formación
+    form_counts, form_evidence = _count_formacion(text)
 
     results: List[ItemResult] = []
     section_totals: Dict[str, float] = {}
@@ -323,50 +301,52 @@ def score_text(
             unit_points = float(item.get("unit_points", 0))
             item_max = float(item.get("max_points", 0))
 
-            count = 0
-            evidence = ""
+            count: int = 0
+            evidence: str = ""
 
-            # Override SOLO en Formación académica y complementaria
+            # =========================
+            # OVERRIDE Formación académica y complementaria
+            # =========================
             if section_name.strip().lower().startswith("formación académica") or section_name.strip().lower().startswith("formacion academica"):
                 il = item_name.lower()
 
-                if "doctor" in il:
+                if "doctorad" in il:
                     count = form_counts["doctorado"]
-                    evidence = " | ".join(form_evid["doctorado"][:6])
-                elif "maestr" in il or "mag" in il:
+                    evidence = form_evidence["doctorado"]
+                elif "maestr" in il or "magister" in il or "magíster" in il:
                     count = form_counts["maestria"]
-                    evidence = " | ".join(form_evid["maestria"][:6])
-                elif "especial" in il:
+                    evidence = form_evidence["maestria"]
+                elif "especializ" in il or "especialista" in il:
                     count = form_counts["especializacion"]
-                    evidence = " | ".join(form_evid["especializacion"][:6])
+                    evidence = form_evidence["especializacion"]
                 elif "título de grado" in il or "titulo de grado" in il or il.strip() == "grado":
                     count = form_counts["grado"]
-                    evidence = " | ".join(form_evid["grado"][:6])
-                elif "profesor" in il:
+                    evidence = form_evidence["grado"]
+                elif "profesorado" in il or "docencia universitaria" in il:
                     count = form_counts["profesorado"]
-                    evidence = " | ".join(form_evid["profesorado"][:6])
-                elif "posdoc" in il or "postdoc" in il or "postdoctor" in il or "posdoctor" in il:
+                    evidence = form_evidence["profesorado"]
+                elif "posdoctor" in il or "posdoc" in il or "postdoc" in il:
                     count = form_counts["posdoc"]
-                    evidence = " | ".join(form_evid["posdoc"][:6])
+                    evidence = form_evidence["posdoc"]
                 else:
-                    # ítems de cursos/idiomas/etc: usar regex
-                    rx = _compile(pattern)
-                    if rx:
-                        matches = list(rx.finditer(text))
-                        count = len(matches)
-                        if matches:
-                            evidence = _pick_evidence(text, matches[0], max_chars=evidence_max_chars)
+                    # otros ítems (cursos/idiomas/etc.) siguen por regex
+                    pass
 
-            else:
-                # resto de secciones: regex normal
-                rx = _compile(pattern)
-                if rx:
+            # =========================
+            # DEFAULT: regex global
+            # =========================
+            if evidence == "" and pattern:
+                try:
+                    rx = _compile(pattern)
                     matches = list(rx.finditer(text))
                     count = len(matches)
                     if matches:
                         evidence = _pick_evidence(text, matches[0], max_chars=evidence_max_chars)
+                except re.error:
+                    count = 0
+                    evidence = ""
 
-            raw_points = float(count) * unit_points
+            raw_points = count * unit_points
             capped_item_points = min(raw_points, item_max) if item_max >= 0 else raw_points
 
             results.append(
@@ -374,22 +354,21 @@ def score_text(
                     section=section_name,
                     item=item_name,
                     pattern=pattern,
-                    count=int(count),
+                    count=count,
                     unit_points=unit_points,
                     raw_points=raw_points,
                     capped_item_points=capped_item_points,
                     item_max_points=item_max,
-                    evidence=evidence[:evidence_max_chars],
+                    evidence=evidence[:evidence_max_chars] if evidence else "",
                 )
             )
-
             sec_sum += capped_item_points
 
         sec_sum = min(sec_sum, sec_max)
         section_totals[section_name] = sec_sum
         total_points += sec_sum
 
-    # categoría por puntos
+    # categoría por umbral
     category = "VI"
     if categorias:
         ordered = sorted(
