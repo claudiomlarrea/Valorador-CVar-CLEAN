@@ -34,10 +34,10 @@
           "unit_points": 40,
           "max_points": 40
   },
-     "Becas de formación (Perfeccionamiento/Posdoc/Especialización/Doctorado)": {
-        "pattern": "(?is)(?:^|\\n)\\s*Beca\\s+de\\s+(?:Perfeccionamiento\\s+en\\s+la\\s+Investigaci[oó]n|Posdoctorado|Postdoctorado|Especializaci[oó]n|Postgrado\\s*\\/\\s*Doctorado)\\b[\\s\\S]{0,700}?(?:A(?:ñ|n)o\\s+de\\s+(?:finalizaci[oó]n|obtenci[oó]n|inicio)\\s*[:\\-–]?\\s*(?:\\d{2}\\/\\d{4}|19\\d{2}|20\\d{2})|\\b(?:19\\d{2}|20\\d{2})\\b)",
-        "unit_points": 20,
-        "max_points": 80
+    "Becas de formación (Perfeccionamiento/Posdoc/Especialización/Doctorado)": {
+      "pattern": "(?is)(?:^|\\n)\\s*Beca\\s+de\\s+(?:Perfeccionamiento\\s+en\\s+la\\s+Investigaci[oó]n|Posdoctorado|Postdoctorado|Especializaci[oó]n|Postgrado\\s*\\/\\s*Doctorado)\\b(?:(?!\\n\\s*(?:&#61485;|•|\\u2022)).){0,1200}?(?:A(?:ñ|n)o\\s+de\\s+(?:finalizaci[oó]n|obtenci[oó]n|inicio)\\s*[:\\-–]?\\s*(?:\\d{2}\\/\\d{4}|19\\d{2}|20\\d{2})|\\b(?:19\\d{2}|20\\d{2})\\b)",
+      "unit_points": 20,
+      "max_points": 80
   },   
         "Cursos/Diplomaturas con horas (Hasta/Entre)": {
           "pattern": "(?is)(?:^|\\n)\\s*(?:(?:\\d{2}/\\d{4})\\s*[-–]\\s*(?:\\d{2}/\\d{4}|Actualidad)|\\b(?:19\\d{2}|20\\d{2})\\b)\\s+[^\\n]{0,160}?(?:Curso|Cursos|Diplomatura|Diplomado|Seminario|Taller|Capacitaci[oó]n|Actualizaci[oó]n|Posgrado)\\b[\\s\\S]{0,1200}?\\b(?:\\d{1,4})\\s*(?:hs\\.?|h\\.?|horas)\\b[\\s\\S]{0,200}?(?=(?:\\n\\s*(?:(?:\\d{2}/\\d{4})\\s*[-–]\\s*(?:\\d{2}/\\d{4}|Actualidad)|\\b(?:19\\d{2}|20\\d{2})\\b))|\\Z)",
