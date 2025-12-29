@@ -34,11 +34,7 @@
           "unit_points": 40,
           "max_points": 40
   },
-     "Posdoctorado (en curso o finalizado)": {
-          "pattern": "(?ims)(?:^|\\n)\\s*(?:Postdoctorado|Posdoctorado)\\b(?:(?!Doctorado|Maestr[ií]a|Licenciatura|Especializaci[oó]n)[\\s\\S]){0,1600}?(?:A[nñ]o\\s+de\\s+finalizaci[oó]n\\s*[:\\-–]?\\s*(?:19\\d{2}|20\\d{2})|Situaci[oó]n\\s+del\\s+nivel\\s*[:\\-–]?\\s*Completo|\\b(finalizad[oa]|egresad[oa]|graduad[oa]|t[ií]tulo\\s+obtenido|t[ií]tulo\\s+otorgado)\\b)(?![\\s\\S]{0,140}?(?:Actualidad|En\\s+curso|Cursando))",
-          "unit_points": 40,
-          "max_points": 40
- },
+    
         "Cursos/Diplomaturas con horas (Hasta/Entre)": {
           "pattern": "(?is)(?:^|\\n)\\s*(?:(?:\\d{2}/\\d{4})\\s*[-–]\\s*(?:\\d{2}/\\d{4}|Actualidad)|\\b(?:19\\d{2}|20\\d{2})\\b)\\s+[^\\n]{0,160}?(?:Curso|Cursos|Diplomatura|Diplomado|Seminario|Taller|Capacitaci[oó]n|Actualizaci[oó]n|Posgrado)\\b[\\s\\S]{0,1200}?\\b(?:\\d{1,4})\\s*(?:hs\\.?|h\\.?|horas)\\b[\\s\\S]{0,200}?(?=(?:\\n\\s*(?:(?:\\d{2}/\\d{4})\\s*[-–]\\s*(?:\\d{2}/\\d{4}|Actualidad)|\\b(?:19\\d{2}|20\\d{2})\\b))|\\Z)",
           "unit_points": 5,
