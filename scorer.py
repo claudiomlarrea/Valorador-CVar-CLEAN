@@ -58,6 +58,7 @@ def _norm_key(s: str) -> str:
 
 # ==========================================================
 # Formación Académica: extracción + parse por entradas
+# (evita regex “greedy” y permite títulos infinitos)
 # ==========================================================
 
 _FORM_HEADERS = [
@@ -81,30 +82,26 @@ _NEXT_MARKERS = [
     r"\n\s*Fecha\s+de\s+generaci[oó]n\b",
 ]
 
-# ✅ FIX: tokens de profesiones con (o/a) para que exista boundary
-_GRADO_TOKENS = (
-    r"Licenciatura|Licenciad[oa]\s+en|Licenciad[oa]s?\b|"
-    r"T[eé]cnica\s+Universitaria|Tecnicatura|"
-    r"Contador(?:a)?|Contadur[ií]a|"
-    r"Abogad[oa]s?\b|"
-    r"Ingenier(?:o|a)?|"
-    r"Bioqu[ií]mic(?:o|a)?|"
-    r"M[eé]dic(?:o|a)?|"
-    r"Farmac[eé]utic(?:o|a)?|"
-    r"Arquitect(?:o|a)?|"
-    r"Odont[oó]log(?:o|a)?"
-)
-
-# entradas que arrancan una formación
+# ✅ CLAVE: NO usar raíces con \b que corten "Bioquímico"/"Farmacéutico"
+#          Usar sufijos opcionales (?:o|a), y variantes frecuentes.
 _RE_ENTRY_START = re.compile(
     r"(?im)^\s*(?:[-•·*]|\&\#61485;)?\s*"
     r"("
     r"Posdoctorado|Postdoctorado|"
-    r"Doctorado|Doctor\s+en|Doctor\s+de\s+la\s+Universidad|"
+    r"Doctorado|Doctor(?:a)?\s+en|Doctor(?:a)?\s+de\s+la\s+Universidad|Doctor(?:a)?|"
     r"Maestr[ií]a|Mag[ií]ster|Magister|"
     r"Especializaci[oó]n|Especialista|"
-    r"Profesorado|Profesor\s+Universitario|Profesor\s+en|"
-    + _GRADO_TOKENS +
+    r"Profesorado|Profesor(?:a)?\s+Universitario|Profesor(?:a)?\s+en|"
+    r"Licenciatura|Licenciad[oa]s?\s+en|Licenciad[oa]s?\b|"
+    r"T[eé]cnica\s+Universitaria|Tecnicatura|"
+    r"Contador(?:a)?|Contadur[ií]a|"
+    r"Abogad(?:o|a)|"
+    r"Ingenier(?:o|a)|Ingenier[ií]a|"
+    r"Bioqu[ií]mic(?:o|a)s?|"
+    r"Farmac[eé]utic(?:o|a)s?|"
+    r"M[eé]dic(?:o|a)s?|"
+    r"Arquitect(?:o|a)s?|"
+    r"Odont[oó]log(?:o|a)s?"
     r")\b",
     re.IGNORECASE
 )
@@ -122,10 +119,11 @@ _RE_FINISH = re.compile(
 _RE_SITUACION_COMPLETO = re.compile(r"Situaci[oó]n\s+del\s+nivel\s*[:\-–]?\s*Completo", re.IGNORECASE)
 
 _RE_COMPLETION_CUES = re.compile(
-    r"\b(finalizad[oa]|egresad[oa]|graduad[oa]|t[ií]tulo\s+obtenido|t[ií]tulo\s+otorgado|complet(?:o|ada))\b",
+    r"\b(finalizad[oa]|egresad[oa]|graduad[oa]|t[ií]tulo\s+obtenido|t[ií]tulo\s+otorgado|complet(?:o|ada)|defendid[oa])\b",
     re.IGNORECASE
 )
 
+# contexto que NO queremos que dispare posdoc
 _RE_BECARIO_CONTEXT = re.compile(
     r"\b(becari[oa]s?|beca|direcci[oó]n|co[- ]?direcci[oó]n|tesista|investigador/a|investigador)\b",
     re.IGNORECASE
@@ -169,13 +167,12 @@ def _split_entries(block: str) -> List[str]:
     if buf:
         entries.append("\n".join(buf).strip())
 
-    # fallback si quedó todo pegado
+    # fallback si quedó todo pegado (pasa en algunos CVAR)
     if len(entries) == 1 and len(entries[0]) > 1500:
         parts = re.split(
-            r"(?i)(?=Posdoctorado\b|Postdoctorado\b|Doctorado\b|Doctor\s+en\b|Doctor\s+de\s+la\s+Universidad\b|"
-            r"Maestr[ií]a\b|Mag[ií]ster\b|Magister\b|Especializaci[oó]n\b|Licenciad[oa]\s+en\b|Licenciatura\b|"
-            r"T[eé]cnica\s+Universitaria\b|Tecnicatura\b|Contador\b|Abogad[oa]\b|Ingenier\b|Bioqu[ií]mic\b|M[eé]dic\b|"
-            r"Farmac[eé]utic\b|Arquitect\b|Odont[oó]log\b)",
+            r"(?i)(?=Posdoctorado\b|Postdoctorado\b|Doctorado\b|Doctor(?:a)?\s+en\b|Doctor(?:a)?\s+de\s+la\s+Universidad\b|Doctor(?:a)?\b|"
+            r"Maestr[ií]a\b|Mag[ií]ster\b|Magister\b|Especializaci[oó]n\b|Licenciad[oa]s?\s+en\b|Licenciatura\b|"
+            r"Bioqu[ií]mic(?:o|a)\b|Farmac[eé]utic(?:o|a)\b|M[eé]dic(?:o|a)\b|Abogad(?:o|a)\b|Ingenier(?:o|a)\b|Arquitect(?:o|a)\b|Odont[oó]log(?:o|a)\b)",
             entries[0]
         )
         entries = [p.strip() for p in parts if p.strip()]
@@ -213,17 +210,23 @@ def _first_line(entry: str) -> str:
 def _classify(entry: str) -> str:
     if re.search(r"\b(Posdoctorado|Postdoctorado)\b", entry, re.IGNORECASE):
         return "posdoc"
-    if re.search(r"\bDoctorado\b|\bDoctor\s+en\b|\bDoctor\s+de\s+la\s+Universidad\b", entry, re.IGNORECASE):
+    if re.search(r"\bDoctorado\b|\bDoctor(?:a)?\s+en\b|\bDoctor(?:a)?\s+de\s+la\s+Universidad\b|\bDoctor(?:a)?\b", entry, re.IGNORECASE):
         return "doctorado"
     if re.search(r"\bMaestr[ií]a\b|\bMag[ií]ster\b|\bMagister\b", entry, re.IGNORECASE):
         return "maestria"
     if re.search(r"\bEspecializaci[oó]n\b|\bEspecialista\b", entry, re.IGNORECASE):
         return "especializacion"
-    if re.search(r"\bProfesorado\b|\bProfesor\s+en\b|\bProfesor\s+Universitario\b", entry, re.IGNORECASE):
+    if re.search(r"\bProfesorado\b|\bProfesor(?:a)?\s+en\b|\bProfesor(?:a)?\s+Universitario\b", entry, re.IGNORECASE):
         return "profesorado"
 
-    # ✅ FIX: grado con (o/a)
-    if re.search(rf"\b({_GRADO_TOKENS})\b", entry, re.IGNORECASE):
+    # ✅ grado (con sufijos)
+    if re.search(
+        r"\b(Licenciatura|Licenciad[oa]s?\s+en|Licenciad[oa]s?\b|T[eé]cnica\s+Universitaria|Tecnicatura|"
+        r"Contador(?:a)?|Contadur[ií]a|Abogad(?:o|a)|Ingenier(?:o|a)|Ingenier[ií]a|"
+        r"Bioqu[ií]mic(?:o|a)s?|Farmac[eé]utic(?:o|a)s?|M[eé]dic(?:o|a)s?|Arquitect(?:o|a)s?|Odont[oó]log(?:o|a)s?)\b",
+        entry,
+        re.IGNORECASE
+    ):
         return "grado"
 
     return "otro"
@@ -241,7 +244,6 @@ def _count_formacion(full_text: str) -> Tuple[Dict[str, int], Dict[str, str]]:
         "posdoc": 0,
     }
     evidence = {k: "" for k in counts.keys()}
-
     seen = set()
 
     for e in entries:
@@ -282,7 +284,7 @@ def score_text(
     sections = criteria.get("sections", {})
     categorias = criteria.get("categorias", {})
 
-    # override SOLO para Formación
+    # ✅ override SOLO para Formación
     form_counts, form_evidence = _count_formacion(text)
 
     results: List[ItemResult] = []
@@ -302,11 +304,13 @@ def score_text(
             count: int = 0
             evidence: str = ""
 
+            # =========================
             # OVERRIDE Formación académica y complementaria
+            # =========================
             if section_name.strip().lower().startswith("formación académica") or section_name.strip().lower().startswith("formacion academica"):
                 il = item_name.lower()
 
-                if "doctorad" in il:
+                if "doctorad" in il or il.strip() == "doctorado":
                     count = form_counts["doctorado"]
                     evidence = form_evidence["doctorado"]
                 elif "maestr" in il or "magister" in il or "magíster" in il:
@@ -328,7 +332,9 @@ def score_text(
                     # otros ítems (cursos/idiomas/etc.) siguen por regex
                     pass
 
+            # =========================
             # DEFAULT: regex global
+            # =========================
             if evidence == "" and pattern:
                 try:
                     rx = _compile(pattern)
