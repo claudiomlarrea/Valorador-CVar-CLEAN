@@ -199,16 +199,23 @@ def _split_entries_structural(block: str) -> List[str]:
     return cleaned
 
 def _entry_completed(entry: str) -> bool:
-    # si dice en curso/actualidad, NO
-    if _RE_IN_PROGRESS.search(entry):
-        return False
-    # evidencias explícitas
+    """
+    Regla robusta:
+    - Si hay evidencia explícita de finalización → ES FINALIZADO (aunque diga "Actualidad" en otra línea).
+    - Si NO hay evidencia explícita y dice "Actualidad/En curso" → NO finalizado.
+    """
+    # ✅ Evidencias explícitas primero (ganan siempre)
     if _RE_FINISH.search(entry):
         return True
     if _RE_SITUACION_COMPLETO.search(entry):
         return True
     if _RE_COMPLETION_CUES.search(entry):
         return True
+
+    # 🚫 Si solo dice Actualidad / En curso y no hay evidencia explícita → NO finalizado
+    if _RE_IN_PROGRESS.search(entry):
+        return False
+
     return False
 
 def _finish_token(entry: str) -> str:
