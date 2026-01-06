@@ -1,7 +1,7 @@
 import json
 import re
 from dataclasses import dataclass
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple
 
 
 # =========================
@@ -58,10 +58,8 @@ def _norm_key(s: str) -> str:
 
 # ==========================================================
 # Formación Académica: extracción + parse por entradas
-# (evita regex “greedy” que se come 3 doctorados como 1)
 # ==========================================================
 
-# headers típicos del CVAR
 _FORM_HEADERS = [
     r"\bFORMACI[ÓO]N\s+ACAD[ÉE]MICA\b",
     r"\bFORMACION\s+ACADEMICA\b",
@@ -69,7 +67,6 @@ _FORM_HEADERS = [
     r"\bFORMACION\s+ACADEMICA\s+Y\s+COMPLEMENTARIA\b",
 ]
 
-# cortes típicos (secciones siguientes)
 _NEXT_MARKERS = [
     r"\n\s*FORMACI[ÓO]N\s+DE\s+RECURSOS\s+HUMANOS\b",
     r"\n\s*RECURSOS\s+HUMANOS\b",
@@ -84,7 +81,21 @@ _NEXT_MARKERS = [
     r"\n\s*Fecha\s+de\s+generaci[oó]n\b",
 ]
 
-# entradas que arrancan una formación (incluye “Licenciado en …”)
+# ✅ FIX: tokens de profesiones con (o/a) para que exista boundary
+_GRADO_TOKENS = (
+    r"Licenciatura|Licenciad[oa]\s+en|Licenciad[oa]s?\b|"
+    r"T[eé]cnica\s+Universitaria|Tecnicatura|"
+    r"Contador(?:a)?|Contadur[ií]a|"
+    r"Abogad[oa]s?\b|"
+    r"Ingenier(?:o|a)?|"
+    r"Bioqu[ií]mic(?:o|a)?|"
+    r"M[eé]dic(?:o|a)?|"
+    r"Farmac[eé]utic(?:o|a)?|"
+    r"Arquitect(?:o|a)?|"
+    r"Odont[oó]log(?:o|a)?"
+)
+
+# entradas que arrancan una formación
 _RE_ENTRY_START = re.compile(
     r"(?im)^\s*(?:[-•·*]|\&\#61485;)?\s*"
     r"("
@@ -93,10 +104,7 @@ _RE_ENTRY_START = re.compile(
     r"Maestr[ií]a|Mag[ií]ster|Magister|"
     r"Especializaci[oó]n|Especialista|"
     r"Profesorado|Profesor\s+Universitario|Profesor\s+en|"
-    r"Licenciatura|Licenciad[oa]\s+en|Licenciad[oa]s?\b|"
-    r"T[eé]cnica\s+Universitaria|Tecnicatura|"
-    r"Contador|Contadora|Contadur[ií]a|"
-    r"Abogado|Abogada|Ingenier|Bioqu[ií]mic|M[eé]dic|Farmac[eé]utic|Arquitect|Odont[oó]log"
+    + _GRADO_TOKENS +
     r")\b",
     re.IGNORECASE
 )
@@ -118,7 +126,6 @@ _RE_COMPLETION_CUES = re.compile(
     re.IGNORECASE
 )
 
-# contexto que NO queremos que dispare posdoc
 _RE_BECARIO_CONTEXT = re.compile(
     r"\b(becari[oa]s?|beca|direcci[oó]n|co[- ]?direcci[oó]n|tesista|investigador/a|investigador)\b",
     re.IGNORECASE
@@ -162,11 +169,13 @@ def _split_entries(block: str) -> List[str]:
     if buf:
         entries.append("\n".join(buf).strip())
 
-    # fallback si quedó todo pegado (pasa en algunos CVAR)
+    # fallback si quedó todo pegado
     if len(entries) == 1 and len(entries[0]) > 1500:
         parts = re.split(
             r"(?i)(?=Posdoctorado\b|Postdoctorado\b|Doctorado\b|Doctor\s+en\b|Doctor\s+de\s+la\s+Universidad\b|"
-            r"Maestr[ií]a\b|Mag[ií]ster\b|Magister\b|Especializaci[oó]n\b|Licenciad[oa]\s+en\b|Licenciatura\b)",
+            r"Maestr[ií]a\b|Mag[ií]ster\b|Magister\b|Especializaci[oó]n\b|Licenciad[oa]\s+en\b|Licenciatura\b|"
+            r"T[eé]cnica\s+Universitaria\b|Tecnicatura\b|Contador\b|Abogad[oa]\b|Ingenier\b|Bioqu[ií]mic\b|M[eé]dic\b|"
+            r"Farmac[eé]utic\b|Arquitect\b|Odont[oó]log\b)",
             entries[0]
         )
         entries = [p.strip() for p in parts if p.strip()]
@@ -174,10 +183,8 @@ def _split_entries(block: str) -> List[str]:
     return entries
 
 def _entry_completed(entry: str) -> bool:
-    # si dice en curso/actualidad, NO
     if _RE_IN_PROGRESS.search(entry):
         return False
-    # evidencias explícitas
     if _RE_FINISH.search(entry):
         return True
     if _RE_SITUACION_COMPLETO.search(entry):
@@ -214,21 +221,14 @@ def _classify(entry: str) -> str:
         return "especializacion"
     if re.search(r"\bProfesorado\b|\bProfesor\s+en\b|\bProfesor\s+Universitario\b", entry, re.IGNORECASE):
         return "profesorado"
-    if re.search(
-        r"\b(Licenciatura|Licenciad[oa]\s+en|Licenciad[oa]s?\b|T[eé]cnica\s+Universitaria|Tecnicatura|"
-        r"Contador|Contadora|Contadur[ií]a|Abogado|Abogada|Ingenier|Bioqu[ií]mic|M[eé]dic|Farmac[eé]utic|Arquitect|Odont[oó]log)\b",
-        entry,
-        re.IGNORECASE
-    ):
+
+    # ✅ FIX: grado con (o/a)
+    if re.search(rf"\b({_GRADO_TOKENS})\b", entry, re.IGNORECASE):
         return "grado"
+
     return "otro"
 
 def _count_formacion(full_text: str) -> Tuple[Dict[str, int], Dict[str, str]]:
-    """
-    Devuelve:
-    - counts por tipo (doctorado, maestria, especializacion, grado, profesorado, posdoc)
-    - evidence por tipo (1ra evidencia para mostrar)
-    """
     block = _extract_formacion_block(full_text)
     entries = _split_entries(block)
 
@@ -249,10 +249,8 @@ def _count_formacion(full_text: str) -> Tuple[Dict[str, int], Dict[str, str]]:
         if tipo not in counts:
             continue
 
-        # posdoc: SOLO si realmente es posdoctorado y no contexto de becas/rrhh
-        if tipo == "posdoc":
-            if _RE_BECARIO_CONTEXT.search(e):
-                continue
+        if tipo == "posdoc" and _RE_BECARIO_CONTEXT.search(e):
+            continue
 
         if not _entry_completed(e):
             continue
@@ -284,7 +282,7 @@ def score_text(
     sections = criteria.get("sections", {})
     categorias = criteria.get("categorias", {})
 
-    # ✅ override SOLO para Formación
+    # override SOLO para Formación
     form_counts, form_evidence = _count_formacion(text)
 
     results: List[ItemResult] = []
@@ -304,9 +302,7 @@ def score_text(
             count: int = 0
             evidence: str = ""
 
-            # =========================
             # OVERRIDE Formación académica y complementaria
-            # =========================
             if section_name.strip().lower().startswith("formación académica") or section_name.strip().lower().startswith("formacion academica"):
                 il = item_name.lower()
 
@@ -332,9 +328,7 @@ def score_text(
                     # otros ítems (cursos/idiomas/etc.) siguen por regex
                     pass
 
-            # =========================
             # DEFAULT: regex global
-            # =========================
             if evidence == "" and pattern:
                 try:
                     rx = _compile(pattern)
