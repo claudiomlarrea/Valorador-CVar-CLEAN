@@ -24,7 +24,6 @@ text = raw.decode("utf-8", errors="ignore")
 
 st.success(f"Archivo cargado: {uploaded.name}")
 
-# Vista previa (solo UI)
 preview_lines = 200
 lines = text.splitlines()
 preview = "\n".join(lines[:preview_lines])
@@ -45,7 +44,6 @@ st.metric("Categoría alcanzada", f"Categoría {category}")
 if desc_cat:
     st.info(f"Descripción de la categoría: {desc_cat}")
 
-# Tabla detalle por ítem
 rows = []
 for r in item_results:
     rows.append({
@@ -88,7 +86,6 @@ st.dataframe(df_sec_tot, use_container_width=True, hide_index=True)
 st.markdown("---")
 st.subheader("Exportar resultados")
 
-# Excel
 excel_out = io.BytesIO()
 with pd.ExcelWriter(excel_out, engine="xlsxwriter") as writer:
     for section_name in criteria.get("sections", {}).keys():
@@ -110,7 +107,6 @@ st.download_button(
     use_container_width=True
 )
 
-# Word
 def export_word(df_items_local, df_sec_tot_local, total_pts, cat, cat_desc, filename):
     doc = DocxDocument()
     p = doc.add_paragraph("Universidad Católica de Cuyo — Secretaría de Investigación")
@@ -149,7 +145,11 @@ def export_word(df_items_local, df_sec_tot_local, total_pts, cat, cat_desc, file
                 for i, c in enumerate(cols):
                     cells[i].text = str(r.get(c, ""))
 
-        doc.add_paragraph(f"Subtotal sección: {df_sec_tot_local[df_sec_tot_local['Sección']==section_name]['Subtotal'].values[0]:.1f}" if (df_sec_tot_local['Sección']==section_name).any() else "")
+        doc.add_paragraph(
+            f"Subtotal sección: {df_sec_tot_local[df_sec_tot_local['Sección']==section_name]['Subtotal'].values[0]:.1f}"
+            if (df_sec_tot_local['Sección']==section_name).any()
+            else ""
+        )
 
     bio = io.BytesIO()
     doc.save(bio)
