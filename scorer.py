@@ -256,8 +256,8 @@ def _classify_structural(entry: str) -> str:
     if re.search(r"\bmaestr[ií]a\b|\bmag[ií]ster\b|\bmagister\b", head):
         return "maestria"
 
-    if re.search(r"\bespecializaci[oó]n\b|\bespecialidad\b|\bespecialista\b", head):
-        return "especializacion"
+    if re.search(r"\b(especializaci[oó]n|especialidad|especialista|carrera\s+de\s+especialista|posgrado\s*:\s*especialidad)\b", head):
+    return "especializacion"
 
     if re.search(r"\bprofesorado\b|\bprofesor universitario\b", head):
         return "profesorado"
