@@ -227,31 +227,51 @@ def _classify_structural(entry: str) -> str:
     Orden CRÍTICO:
     - Diplomatura primero
     - Luego doctorado/maestría/especialización/profesorado
-    - Luego: si tiene ancla institucional y está completado => GRADO (cualquier profesión)
+    - "Profesor en ..." con ancla institucional => GRADO (caso típico CVAR)
+    - GRADO: SOLO si parece un título (no "Lugar de trabajo", no "CVar ES...", no "Fecha de generación")
+             y tiene ancla institucional.
     """
-    # mirar primera línea + parte del cuerpo (porque a veces “Especialista” no está en la 1ra línea)
-    head = _first_line(entry).lower()
-    blob = (head + " " + entry.lower())[:800]
+    head_raw = _first_line(entry)
+    head = (head_raw or "").strip().lower()
 
-    if re.search(r"\b(diplomatura|diplomado|diploma)\b", blob):
+    # --- Basura/ruido típico de CVAR (NO es formación) ---
+    if re.search(r"^(lugar de trabajo|cvar\s+es\s+una\s+iniciativa|fecha de generación)\b", head, re.IGNORECASE):
+        return "otro"
+    if re.fullmatch(r"\d{1,3}", head):  # números de página sueltos
+        return "otro"
+
+    # 1) Diplomatura (aunque diga "Especialización en 'Diplomatura...'", NO es posgrado)
+    if "diplomatura" in head or "diplomado" in head or "diploma" in head:
         return "diplomatura"
 
-    if re.search(r"\b(doctorado|doctor\s+en|doctor\s+de\s+la\s+universidad|doctor(?:a)?)\b", blob):
+    # 2) Doctorado
+    if re.search(r"\bdoctorad\b|\bdoctor\b", head, re.IGNORECASE):
         return "doctorado"
 
-    if re.search(r"\b(maestr[ií]a|mag[ií]ster|magister)\b", blob):
+    # 3) Maestría / Magíster
+    if re.search(r"\bmaestr[ií]a\b|\bmag[ií]ster\b|\bmagister\b", head, re.IGNORECASE):
         return "maestria"
 
-    if re.search(
-        r"\b(especializaci[oó]n|especialidad|especialista|carrera\s+de\s+especialista|posgrado\s*:\s*especialidad)\b",
-        blob
-    ):
+    # 4) Especialización / Especialista / Especialidad
+    # (esto no lo arregla si CONICET no pone FACULTAD/UNIVERSIDAD, pero tu decisión es NO tocar eso)
+    if re.search(r"\bespecializaci[oó]n\b|\bespecialidad\b|\bespecialista\b", head, re.IGNORECASE):
         return "especializacion"
 
-    if re.search(r"\b(profesorado|profesor\s+universitario|profesor\s+en)\b", blob):
+    # 5) Profesorado explícito (solo si dice "Profesorado" o "Profesor Universitario")
+    if re.search(r"\bprofesorado\b|\bprofesor\s+universitario\b", head, re.IGNORECASE):
         return "profesorado"
 
+    # 6) Caso CLAVE: "Profesor en ..." (en CVAR muchas veces ES un título de grado)
+    if re.search(r"\bprofesor(a)?\s+en\b", head, re.IGNORECASE) and _has_institution_anchor(entry):
+        return "grado"
+
+    # 7) GRADO genérico: SOLO si parece un título (no frases administrativas)
+    #    y tiene ancla institucional (FACULTAD/UNIVERSIDAD/INSTITUTO)
+    #    Importante: acá NO buscamos profesión; funciona para Veterinario, Enfermero, Bromatólogo, Programador, etc.
     if _has_institution_anchor(entry):
+        # si el head es demasiado "administrativo", lo descartamos
+        if re.search(r"\b(ciencias|área|disciplinas|línea|especializado|investigador|lugar|trabajo)\b", head, re.IGNORECASE):
+            return "otro"
         return "grado"
 
     return "otro"
