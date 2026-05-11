@@ -81,6 +81,8 @@ _NEXT_MARKERS = [
     r"\n\s*ACTIVIDADES\b",
     r"\n\s*EXPERIENCIA\b",
     r"\n\s*CARGOS\b",
+    r"\n\s*CURSOS\s+Y\s+CAPACITACIONES\b",
+    r"\n\s*CURSOS\s+E\s+CAPACITACIONES\b",
     r"\n\s*CVar\b",
     r"\n\s*Fecha\s+de\s+generaci[oó]n\b",
 ]
@@ -96,7 +98,7 @@ _RE_ENTRY_START = re.compile(
     r"Especializaci[oó]n|Especialidad|Especialista|"
     r"Profesorado|Profesor\s+Universitario|Profesor\s+en|"
     r"Licenciatura|Licenciad[oa]\s+en|"
-    r"T[eé]cnica\s+Universitaria|Tecnicatura|"
+    r"T[eé]cnica\s+Universitaria|Tecnicatura"
     r")\b",
     re.IGNORECASE
 )
@@ -352,6 +354,7 @@ def score_text(
 
             count = 0
             evidence = ""
+            forma_struct_locked = False  # titulos grandes: solo parser estructural (sin regex de respaldo)
 
             # =========================
             # OVERRIDE Formación académica y complementaria
@@ -360,35 +363,44 @@ def score_text(
             if sec_l.startswith("formación académica") or sec_l.startswith("formacion academica"):
                 il = item_name.lower()
 
-                if "doctorad" in il or il.strip().startswith("doctor"):
+                # Antes que Doctorado: "postdoctorado..." contiene la subcadena "doctorad".
+                if il.strip().startswith("postdoctorado"):
+                    count = form_counts["posdoc"]
+                    evidence = form_evidence["posdoc"]
+                    forma_struct_locked = True
+                elif "doctorad" in il or il.strip().startswith("doctor"):
                     count = form_counts["doctorado"]
                     evidence = form_evidence["doctorado"]
+                    forma_struct_locked = True
                 elif "maestr" in il or "magister" in il or "magíster" in il:
                     count = form_counts["maestria"]
                     evidence = form_evidence["maestria"]
+                    forma_struct_locked = True
                 elif "especializ" in il or "especialidad" in il or "especialista" in il:
                     count = form_counts["especializacion"]
                     evidence = form_evidence["especializacion"]
+                    forma_struct_locked = True
                 elif "título de grado" in il or "titulo de grado" in il or il.strip() == "grado":
                     count = form_counts["grado"]
                     evidence = form_evidence["grado"]
+                    forma_struct_locked = True
                 elif "profesorado" in il or "docencia universitaria" in il:
                     count = form_counts["profesorado"]
                     evidence = form_evidence["profesorado"]
-                elif "posdoctor" in il or "posdoc" in il or "postdoc" in il:
-                    count = form_counts["posdoc"]
-                    evidence = form_evidence["posdoc"]
-                elif "diplom" in il:
+                    forma_struct_locked = True
+                # Solo el fallback "sin horas" usa Diplomatura estructural; "con horas" sigue por regex
+                elif "sin horas" in il and "diplom" in il:
                     count = form_counts["diplomatura"]
                     evidence = form_evidence["diplomatura"]
+                    forma_struct_locked = True
                 else:
-                    # otros ítems (cursos/idiomas/etc.) siguen por regex
+                    # otros ítems (cursos con horas, becas línea CONICET, idiomas…) siguen por regex
                     pass
 
             # =========================
             # DEFAULT: regex global
             # =========================
-            if evidence == "" and pattern:
+            if not forma_struct_locked and pattern:
                 try:
                     rx = _compile(pattern)
                     matches = list(rx.finditer(text))

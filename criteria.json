@@ -34,6 +34,11 @@
           "unit_points": 40,
           "max_points": 40
   },
+      "Postdoctorado (finalizado)": {
+          "pattern": "(?!)",
+          "unit_points": 120,
+          "max_points": 240
+      },
       "Becas de formación (Perfeccionamiento/Posdoc/Especialización)": {
         "pattern": "(?is)(?:^|\\n)\\s*Beca\\s+de\\s+(?:Perfeccionamiento\\s+en\\s+la\\s+Investigaci[oó]n|Posdoctorado|Postdoctorado|Especializaci[oó]n)\\b(?:(?!\\n\\s*(?:&#61485;|•|\\u2022)).){0,1200}?(?:A(?:ñ|n)o\\s+de\\s+(?:finalizaci[oó]n|obtenci[oó]n|inicio)\\s*[:\\-–]?\\s*(?:\\d{2}\\/\\d{4}|19\\d{2}|20\\d{2})|\\b(?:19\\d{2}|20\\d{2})\\b)",
         "unit_points": 20,
