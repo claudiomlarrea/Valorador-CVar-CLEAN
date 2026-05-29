@@ -1,6 +1,7 @@
 import base64
 import io
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 import streamlit as st
@@ -17,7 +18,7 @@ _ESCUDO_REMOTE_URL = (
 )
 
 
-def _resolve_escudo_path() -> Path | None:
+def _resolve_escudo_path() -> Optional[Path]:
     assets = _APP_DIR / "assets"
     if not assets.is_dir():
         return None

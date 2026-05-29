@@ -72,6 +72,8 @@ _FORM_HEADERS = [
 ]
 
 _NEXT_MARKERS = [
+    r"\n\s*FORMACI[ÓO]N\s+COMPLEMENTARIA\b",
+    r"\n\s*FORMACION\s+COMPLEMENTARIA\b",
     r"\n\s*FORMACI[ÓO]N\s+DE\s+RECURSOS\s+HUMANOS\b",
     r"\n\s*RECURSOS\s+HUMANOS\b",
     r"\n\s*RRHH\b",
@@ -96,11 +98,30 @@ _RE_ENTRY_START = re.compile(
     r"Doctorado|Doctor\s+en|Doctor\s+de\s+la\s+Universidad|Doctor(?:a)?\b|"
     r"Maestr[ií]a|Mag[ií]ster|Magister|"
     r"Especializaci[oó]n|Especialidad|Especialista|"
-    r"Profesorado|Profesor\s+Universitario|Profesor\s+en|"
-    r"Licenciatura|Licenciad[oa]\s+en|"
+    r"Profesorado|Profesor\s+Superior|Profesor\s+Universitario|Profesor\s+en|"
+    r"Abogad[oa]s?|"
+    r"Licenciatura|Licenciad[oa](?:\s+en)?|"
+    r"Ingenier[oa]s?|Contador(?:a)?s?|Arquitect[oa]s?|"
     r"T[eé]cnica\s+Universitaria|Tecnicatura"
     r")\b",
     re.IGNORECASE
+)
+
+_RE_ENTRY_HEADER_LINE = re.compile(
+    r"(?im)^\s*(?:[-•·*]|\&\#61485;)?\s*"
+    r"(?:"
+    r"Diplomatura|Diplomado|Diploma|"
+    r"Posdoctorado|Postdoctorado|"
+    r"Doctorado|Doctor\s+en|Doctor\s+de\s+la\s+Universidad|Doctor(?:a)?\b|"
+    r"Maestr[ií]a|Mag[ií]ster|Magister|"
+    r"Especializaci[oó]n|Especialidad|Especialista|"
+    r"Profesorado|Profesor\s+Superior|Profesor\s+Universitario|Profesor\s+en|"
+    r"Abogad[oa]s?|"
+    r"Licenciatura|Licenciad[oa](?:\s+en)?|"
+    r"Ingenier[oa]s?|Contador(?:a)?s?|Arquitect[oa]s?|"
+    r"T[eé]cnica\s+Universitaria|Tecnicatura"
+    r")\b",
+    re.IGNORECASE,
 )
 
 _RE_IN_PROGRESS = re.compile(
@@ -168,7 +189,7 @@ def _split_entries(block: str) -> List[str]:
     buf: List[str] = []
 
     for line in lines:
-        if _RE_ENTRY_START.search(line) and buf:
+        if _RE_ENTRY_HEADER_LINE.search(line) and buf:
             entries.append("\n".join(buf).strip())
             buf = [line]
         else:
@@ -177,14 +198,23 @@ def _split_entries(block: str) -> List[str]:
     if buf:
         entries.append("\n".join(buf).strip())
 
-    # fallback si quedó todo pegado
-    if len(entries) == 1 and len(entries[0]) > 1500:
+    # fallback si quedó todo pegado (títulos sin viñeta, p. ej. ABOGADO / PROFESOR SUPERIOR)
+    if len(entries) <= 1:
+        blob = entries[0] if entries else block
         parts = re.split(
-            r"(?i)(?=Diplomatura\b|Diplomado\b|Diploma\b|Posdoctorado\b|Postdoctorado\b|Doctorado\b|Doctor\s+en\b|Doctor\s+de\s+la\s+Universidad\b|Doctor(?:a)?\b|"
-            r"Maestr[ií]a\b|Mag[ií]ster\b|Magister\b|Especializaci[oó]n\b|Especialidad\b|Especialista\b|Profesorado\b|Licenciad[oa]\s+en\b|Licenciatura\b|Tecnicatura\b|T[eé]cnica\s+Universitaria\b)",
-            entries[0]
+            r"(?im)(?=Diplomatura\b|Diplomado\b|Diploma\b|Posdoctorado\b|Postdoctorado\b|"
+            r"Doctorado\b|Doctor\s+en\b|Doctor\s+de\s+la\s+Universidad\b|Doctor(?:a)?\b|"
+            r"Maestr[ií]a\b|Mag[ií]ster\b|Magister\b|"
+            r"Especializaci[oó]n\b|Especialidad\b|Especialista\b|"
+            r"Profesorado\b|Profesor\s+Superior\b|Profesor\s+Universitario\b|"
+            r"Abogad[oa]s?\b|Licenciad[oa](?:\s+en)?\b|Licenciatura\b|"
+            r"Ingenier[oa]s?\b|Contador(?:a)?s?\b|Arquitect[oa]s?\b|"
+            r"Tecnicatura\b|T[eé]cnica\s+Universitaria\b)",
+            blob,
         )
-        entries = [p.strip() for p in parts if p.strip()]
+        split_entries = [p.strip() for p in parts if p.strip()]
+        if len(split_entries) > len(entries):
+            entries = split_entries
 
     return entries
 
@@ -254,19 +284,155 @@ def _classify_structural(entry: str) -> str:
     if re.search(r"\bespecializaci[oó]n|\bespecialista\b", head):
         return "especializacion"
 
-    # 5️⃣ PROFESOR EN ENSEÑANZA MEDIA Y SUPERIOR = GRADO
+    # 5️⃣ Profesor superior / profesorado universitario
+    if re.search(r"\bprofesor\s+superior\b", head):
+        return "profesorado"
+
+    # 6️⃣ PROFESOR EN ENSEÑANZA MEDIA Y SUPERIOR = GRADO
     if re.search(r"\bprofesor\s+en\s+enseñanza\s+media\b", head):
         return "grado"
 
-    # 6️⃣ Profesorado (carreras específicas)
+    # 7️⃣ Profesorado (carreras específicas)
     if re.search(r"\bprofesorado\b", head):
         return "profesorado"
 
-    # 7️⃣ Grado estructural (cualquier carrera con ancla institucional)
+    # 8️⃣ Títulos profesionales de grado (Abogado, Licenciado, etc.)
+    if re.search(
+        r"\b(abogad[oa]s?|licenciad[oa]s?|ingenier[oa]s?|contador(?:a)?s?|arquitect[oa]s?|"
+        r"bioqu[ií]mic[oa]s?|farmac[eé]utic[oa]s?|m[eé]dic[oa]s?)\b",
+        head,
+    ):
+        return "grado"
+
+    # 9️⃣ Grado estructural (cualquier carrera con ancla institucional)
     if _has_institution_anchor(entry) and _entry_completed(entry):
         return "grado"
 
     return "otro"
+
+
+# ==========================================================
+# Producción: artículos en bloque PUBLICACIONES
+# ==========================================================
+
+_PUB_BLOCK_END = [
+    r"\n\s*OTROS\s+ANTECEDENTES\b",
+    r"\n\s*FORMACI[ÓO]N\s+DE\s+RECURSOS\s+HUMANOS\b",
+    r"\n\s*ANTECEDENTES\s+EN\s+CYT\b",
+    r"\n\s*ANTECEDENTES\b",
+]
+
+def _extract_publicaciones_block(full_text: str) -> str:
+    txt = _norm_spaces(full_text)
+    m = re.search(r"\bPUBLICACIONES\b", txt, flags=re.IGNORECASE)
+    if not m:
+        return ""
+    tail = txt[m.start():]
+    end = len(tail)
+    for mk in _PUB_BLOCK_END:
+        m2 = re.search(mk, tail, flags=re.IGNORECASE)
+        if m2:
+            end = min(end, m2.start())
+    return tail[:end].strip()
+
+
+def _merge_publicacion_lines(block: str) -> List[str]:
+    """Agrupa líneas del bloque PUBLICACIONES en citas (soporta título en varias líneas)."""
+    rows: List[str] = []
+    buf = ""
+    for raw in block.splitlines():
+        line = raw.strip()
+        if not line or line.lower() == "null":
+            continue
+        if re.match(r"^(PUBLICACIONES|Art[ií]culos)\b", line, re.IGNORECASE):
+            continue
+        if re.match(r"^(CVar\b|Fecha de generaci)", line, re.IGNORECASE):
+            continue
+        if re.match(r"^L[ÓO]PEZ\s+MORENO", line, re.IGNORECASE):
+            continue
+        if re.match(r"^\d+\s*$", line):
+            continue
+
+        starts_new = bool(
+            re.match(
+                r"^[A-ZÁÉÍÓÚÜÑ][^\n]{0,120}?\.\s*\"",
+                line,
+            )
+            or re.match(r"^\.\s*\"", line)
+        )
+        if starts_new and buf:
+            rows.append(buf.strip())
+            buf = line
+        else:
+            buf = f"{buf} {line}".strip() if buf else line
+
+        if buf and (
+            re.search(r"\(\s*(?:19|20)\d{2}\s*\)", buf)
+            or re.search(r":\s*\(\s*(?:19|20)\d{2}\s*\)", buf)
+            or re.search(r"Traducci[oó]n\s+publicada\s+en\s+revista", buf, re.IGNORECASE)
+        ):
+            rows.append(buf.strip())
+            buf = ""
+
+    if buf.strip():
+        rows.append(buf.strip())
+    return rows
+
+
+def _count_articulos_revistas(full_text: str) -> Tuple[int, str]:
+    block = _extract_publicaciones_block(full_text)
+    if not block:
+        return 0, ""
+
+    seen = set()
+    evidence = ""
+    count = 0
+
+    for row in _merge_publicacion_lines(block):
+        snippet = re.sub(r"\s+", " ", row).strip()
+        if '"' not in snippet:
+            continue
+        if re.search(r"\bTesis\s+de\b", snippet, re.IGNORECASE):
+            continue
+        if re.search(r"En:\s*\(ed\.?\)", snippet, re.IGNORECASE):
+            continue
+        if re.match(r'^\.\s*"', snippet):
+            continue
+        if not (
+            re.search(r"(?:19|20)\d{2}", snippet)
+            or re.search(r"Traducci[oó]n\s+publicada\s+en\s+revista", snippet, re.IGNORECASE)
+        ):
+            continue
+
+        key = _norm_key(snippet[:180])
+        if key in seen:
+            continue
+        seen.add(key)
+        count += 1
+        if not evidence:
+            evidence = snippet[:260]
+
+    return count, evidence
+
+
+def _count_capitulos_libro(full_text: str) -> Tuple[int, str]:
+    block = _extract_publicaciones_block(full_text)
+    if not block:
+        return 0, ""
+
+    count = 0
+    evidence = ""
+    for row in _merge_publicacion_lines(block):
+        snippet = re.sub(r"\s+", " ", row).strip()
+        if not (
+            re.search(r"En:\s*\(ed\.?\)", snippet, re.IGNORECASE)
+            or re.search(r"\bCap[ií]tulo\b", snippet, re.IGNORECASE)
+        ):
+            continue
+        count += 1
+        if not evidence:
+            evidence = snippet[:260]
+    return count, evidence
 
 
 def _count_formacion(full_text: str) -> Tuple[Dict[str, int], Dict[str, str]]:
@@ -337,6 +503,8 @@ def score_text(
 
     # override SOLO para Formación
     form_counts, form_evidence = _count_formacion(text)
+    articulos_count, articulos_evidence = _count_articulos_revistas(text)
+    capitulos_count, capitulos_evidence = _count_capitulos_libro(text)
 
     results: List[ItemResult] = []
     section_totals: Dict[str, float] = {}
@@ -354,14 +522,15 @@ def score_text(
 
             count = 0
             evidence = ""
+            il = item_name.lower()
+            sec_l = section_name.strip().lower()
             forma_struct_locked = False  # titulos grandes: solo parser estructural (sin regex de respaldo)
+            pub_struct_locked = False
 
             # =========================
             # OVERRIDE Formación académica y complementaria
             # =========================
-            sec_l = section_name.strip().lower()
             if sec_l.startswith("formación académica") or sec_l.startswith("formacion academica"):
-                il = item_name.lower()
 
                 # Antes que Doctorado: "postdoctorado..." contiene la subcadena "doctorad".
                 if il.strip().startswith("postdoctorado"):
@@ -398,9 +567,22 @@ def score_text(
                     pass
 
             # =========================
+            # OVERRIDE Producción científica (artículos)
+            # =========================
+            if sec_l.startswith("producción científica") or sec_l.startswith("produccion cientifica"):
+                if il.startswith("artículos en revistas") or il.startswith("articulos en revistas"):
+                    count = articulos_count
+                    evidence = articulos_evidence
+                    pub_struct_locked = True
+                elif il.startswith("capítulos de libro") or il.startswith("capitulos de libro"):
+                    count = capitulos_count
+                    evidence = capitulos_evidence
+                    pub_struct_locked = True
+
+            # =========================
             # DEFAULT: regex global
             # =========================
-            if not forma_struct_locked and pattern:
+            if not forma_struct_locked and not pub_struct_locked and pattern:
                 try:
                     rx = _compile(pattern)
                     matches = list(rx.finditer(text))
