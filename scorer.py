@@ -59,6 +59,83 @@ def _norm_key(s: str) -> str:
     return s
 
 
+_RE_CVAR_BOILERPLATE = re.compile(
+    r"(?:CVar\s+ES\s+UNA\s+INICIATIVA|MINISTERIO\s+DE\s+CIENCIA|"
+    r"Fecha\s+de\s+generaci[oó]n|TECNOLOG[IÍ]A\s+E\s+INNOVACI[ÓO]N)",
+    re.IGNORECASE,
+)
+
+
+def _line_at_pos(text: str, pos: int) -> str:
+    start = text.rfind("\n", 0, pos) + 1
+    end = text.find("\n", pos)
+    if end < 0:
+        end = len(text)
+    return text[start:end]
+
+
+def _is_valid_activity_match(text: str, m: re.Match) -> bool:
+    """Descarta matches anclados en pies de página del CVAr o regex multilínea demasiado anchos."""
+    line = _line_at_pos(text, m.start())
+    if re.search(
+        r"CVar\s+ES\s+UNA\s+INICIATIVA|Fecha\s+de\s+generaci|MINISTERIO\s+DE\s+CIENCIA",
+        line,
+        re.IGNORECASE,
+    ):
+        return False
+
+    if m.end() - m.start() > 900:
+        return False
+
+    head = text[m.start() : m.start() + 240]
+    if m.end() - m.start() > 500 and re.search(
+        r"CONSULTOR\s+DE\s+EMPRESAS|PROGRAMA\s+DE\s+ACTUALIZACION",
+        head,
+        re.IGNORECASE,
+    ):
+        return False
+
+    snippet = _pick_evidence(text, m, max_chars=320)
+    if _RE_CVAR_BOILERPLATE.search(snippet):
+        if re.search(
+            r"\b(?:20\d{2}|19\d{2})\s*[-–]\s*(?:20\d{2}|19\d{2}|Actualidad)\b",
+            snippet,
+        ):
+            return True
+        if re.search(
+            r"\b(?:Evaluaci[oó]n\s+de|Rol:\s|Investigador/a:|Tesista:|"
+            r"Direcci[oó]n\s+de|Jurado|Revisor)\b",
+            snippet,
+            re.IGNORECASE,
+        ):
+            return True
+        return False
+    return True
+
+
+def _tighten_dated_activity_pattern(pattern: str) -> str:
+    """
+    En patrones (?ims)^ de antecedentes datados, el .*? inicial puede saltar de sección.
+    """
+    if not pattern.startswith("(?ims)^"):
+        return pattern
+    return re.sub(r"\?\.\*\?", "?[^\n]{0,260}?", pattern, count=1)
+
+
+def _regex_match_count(text: str, pattern: str, evidence_max_chars: int = 260) -> Tuple[int, str]:
+    if not pattern:
+        return 0, ""
+    pattern = _tighten_dated_activity_pattern(pattern)
+    try:
+        rx = _compile(pattern)
+    except re.error:
+        return 0, ""
+    matches = [m for m in rx.finditer(text) if _is_valid_activity_match(text, m)]
+    if not matches:
+        return 0, ""
+    return len(matches), _pick_evidence(text, matches[0], max_chars=evidence_max_chars)
+
+
 # ==========================================================
 # Formación Académica: extracción + parse por entradas
 # (evita regex “greedy” que se come 3 doctorados como 1)
@@ -398,9 +475,14 @@ def _count_articulos_revistas(full_text: str) -> Tuple[int, str]:
             continue
         if re.match(r'^\.\s*"', snippet):
             continue
-        if not (
+        if re.search(r"Traducci[oó]n\s+publicada\s+en\s+libro", snippet, re.IGNORECASE):
+            continue
+        if re.search(r"Traducci[oó]n\s+publicada", snippet, re.IGNORECASE):
+            if not re.search(r"Traducci[oó]n\s+publicada\s+en\s+revista", snippet, re.IGNORECASE):
+                continue
+        elif not (
             re.search(r"(?:19|20)\d{2}", snippet)
-            or re.search(r"Traducci[oó]n\s+publicada\s+en\s+revista", snippet, re.IGNORECASE)
+            and re.search(r'\.\s*"', snippet)
         ):
             continue
 
@@ -583,15 +665,9 @@ def score_text(
             # DEFAULT: regex global
             # =========================
             if not forma_struct_locked and not pub_struct_locked and pattern:
-                try:
-                    rx = _compile(pattern)
-                    matches = list(rx.finditer(text))
-                    count = len(matches)
-                    if matches:
-                        evidence = _pick_evidence(text, matches[0], max_chars=evidence_max_chars)
-                except re.error:
-                    count = 0
-                    evidence = ""
+                count, evidence = _regex_match_count(
+                    text, pattern, evidence_max_chars=evidence_max_chars
+                )
 
             raw_points = count * unit_points
             capped_item_points = min(raw_points, item_max) if item_max >= 0 else raw_points
